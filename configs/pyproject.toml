@@ -1,0 +1,27 @@
+[project]
+name = "product"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116.1",
+    "langchain>=0.3.27",
+    "langgraph>=0.6.5",
+    "pydantic>=2.11.7",
+    "pytz>=2023.3",
+    "streamlit>=1.48.1",
+    "uvicorn>=0.35.0",
+    "transformers>=4.44",
+    "huggingface_hub>=0.24",
+    "safetensors>=0.4.0",
+    "regex",
+    "ollama>=0.5.3",
+    "langchain-community>=0.3.27",
+    "langchain-ollama>=0.3.6",
+    "pdfme>=0.1.0",
+    "python-dotenv>=1.0.1",
+    "pymongo>=4.14.1",
+]
+
+
