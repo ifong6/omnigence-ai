@@ -1,0 +1,32 @@
+# Web Framework
+fastapi==0.115.6
+uvicorn==0.34.0
+streamlit==1.41.1
+
+# LangChain & AI/ML
+langgraph==0.2.63
+langchain-core==0.3.30
+langchain-google-genai==2.0.10
+google-generativeai==0.8.3
+
+# AWS & Cloud Services
+boto3==1.35.95
+botocore==1.35.95
+
+# Database
+snowflake-connector-python==3.12.3
+
+# PDF Generation
+weasyprint==63.1
+
+# Environment & Configuration
+python-dotenv==1.0.1
+
+# Data Models & Validation
+pydantic==2.10.6
+
+# HTTP Requests
+requests==2.32.3
+
+# CORS Middleware (included with FastAPI but explicit for clarity)
+# Note: CORSMiddleware comes with FastAPI via starlette
