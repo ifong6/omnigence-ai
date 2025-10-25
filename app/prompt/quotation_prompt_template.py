@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 class ProjectItem(BaseModel):
-    no: str
+    no: int
     content: str
     quantity: str
     unit: str
@@ -12,6 +12,7 @@ class ProjectItem(BaseModel):
 class QuotationInfo(BaseModel):
     client_name: str
     client_address: Optional[str] = ""
+    client_phone: Optional[str] = ""
     project_name: str
     no: Optional[str] = None
     date: Optional[str] = None
@@ -20,8 +21,8 @@ class QuotationInfo(BaseModel):
     currency: str
 
 class QuotationInfoExtractOutput(BaseModel):
-    quotation_info: list[QuotationInfo]  # Keep as list[QuotationInfo] for Gemini API compatibility
-    messages: Optional[list[str]] = None
+    quotation_info: QuotationInfo
+    messages: list[str] = []
 
 SYSTEM_ROLE = """
     You are an Information Extraction Agent specialized \
@@ -35,7 +36,7 @@ TASK = """
     For each quotation, extract:
     1. Customer (客戶) - Look for terms containing "有限公司", "公司", "limited", or "LLC".
     2. Project Name (項目名稱) - For SINGLE sets, project_name and content are the SAME.
-      For MULTIPLE sets, project_name is the MAIN project name, and content belongs to each line item.
+       For MULTIPLE sets, project_name is the MAIN project name, and content belongs to each line item.
     3. Line items - A list of line items, each with a cost in MOP.
 """
 
@@ -60,13 +61,14 @@ PATTERN_RULES = """
 """
 
 OUTPUT_RULES = """
-    step 3: Output format, MUST use **QuotationInfoExtractOutput** schema: 
+    step 3: Output format, MUST use **QuotationInfoExtractOutput** schema:
     ```json
     {{
       "quotation_info": [
         {{
           "client_name": "<client_name>",
-          "client_address": "<client_address>",
+          "client_address": "<client_address if provided, otherwise empty string>",
+          "client_phone": "<client_phone if provided, otherwise empty string>",
           "project_name": "<project_name>",
           "no": "<no>",
           "date": "<date>",
@@ -103,6 +105,8 @@ EXAMPLES = """
       "quotation_info": [
         {{
         "client_name": "長聯建築工程有限公司",
+        "client_address": "",
+        "client_phone": "",
         "project_name": "A3連接橋D匝道箱樑木模板支撐架計算",
         "project_items": [
           {{
@@ -134,6 +138,8 @@ EXAMPLES = """
       "quotation_info": [
         {{
           "client_name": "金輝",
+          "client_address": "",
+          "client_phone": "",
           "project_name": "金輝A8項目模板計算",
           "project_items": [
             {{
@@ -158,6 +164,8 @@ EXAMPLES = """
         }},
         {{
           "client_name": "Citywide Development Ltd",
+          "client_address": "",
+          "client_phone": "",
           "project_name": "Harbor Bridge Foundation Design",
           "project_items": [
             {{
@@ -208,5 +216,5 @@ EXTRACT_QUOTATION_PROMPT_TEMPLATE= (
     PATTERN_RULES +
     OUTPUT_RULES +
     EXAMPLES +
-    "\n\nUser Input:\n{user_input}"
+    "\n\nUser Input:\n{user_input}\n\nClient Info:\n{client_info}\n\nQuotation No:\n{quotation_no}\n\nDate:\n{date}"
 )

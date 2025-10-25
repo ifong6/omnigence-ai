@@ -32,7 +32,7 @@ def call_main_flow(user_request: UserRequest):
             "status": "success",
             "result": final_result
         }
-        
+
     except InterruptException as interrupt:
         return {
             "status": "interrupt",
@@ -46,7 +46,7 @@ def call_main_flow(user_request: UserRequest):
             "status": "fail",
             "result": str(e)
         }
-        
+
 # ------------------------------------------------------------------------------#
 
 @app.post("/human-in-loop/feedback")

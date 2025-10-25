@@ -8,6 +8,7 @@ import requests
 from langgraph.types import Command
 from main_flow.utils.Request.UserRequest import UserRequest
 from main_flow.utils.Exception.InterrutpException import InterruptException
+import uuid
 
 workflow_builder = StateGraph(MainFlowState)
 # register nodes
@@ -24,9 +25,15 @@ graph = workflow_builder.compile(checkpointer=MemorySaver())
 #                      MAIN AGENTIC FLOW                        #
 #---------------------------------------------------------------#
 def main_flow(user_request: UserRequest):
+    # Generate unique flow_uuid for this flow execution
+    flow_uuid = str(uuid.uuid4())
+    print(f"[MAIN FLOW] Generated flow_uuid: {flow_uuid} for session: {user_request.session_id}")
+
     initial_state = {
         "user_input": user_request.message,
         "messages": [HumanMessage(content=user_request.message)],
+        "session_id": user_request.session_id,  # Pass session_id for logging
+        "flow_uuid": flow_uuid,  # Unique identifier for this flow execution
     }
     config: RunnableConfig = {
         "configurable": {
@@ -37,6 +44,7 @@ def main_flow(user_request: UserRequest):
     print("[MAIN FLOW] Invoking main agentic graph...\n")
     result = graph.invoke(initial_state, config=config)  # receive entire MainFlowState object here
     
+    # HITL
     if "__interrupt__" in result:
         print(result['__interrupt__'])
         interrupt_info = result["__interrupt__"][0]

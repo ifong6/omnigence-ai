@@ -1,6 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 import uvicorn
-from app.utils.Request.Request import RequestBody
+from app.utils.Request import RequestBody
 from app.finance_agent.finance_agent_flow import finance_agent_flow
 # Create FastAPI app
 app = FastAPI(title="Finance Agent API", version="1.0.0")
@@ -10,7 +10,7 @@ def call_finance_agent_flow(request: RequestBody):
     print(f"[FINANCE_AGENT] Received request: {request.user_input}")
     try:
         result = finance_agent_flow(request)
-      
+
         return {
             "status": "success",
             "result": result
@@ -27,6 +27,6 @@ if __name__ == '__main__':
     uvicorn.run(
         "finance_agent_server:app",
         host="127.0.0.1",
-        port=8002,  # Finance agent port as defined in routing_agent
+        port=8001,  # Finance agent port as defined in orchestrator_agent
         reload=True
     )

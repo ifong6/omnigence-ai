@@ -1,38 +1,31 @@
 from pydantic import BaseModel
 
 class AgentClassifierOutput(BaseModel):
-    agents: list[str]
-    messages: list[str]
-    human_clarification_flag: bool
-    
-#----------------------------------------------------------------------------------------------------------#
-
+    identified_agents: list[str]
+    classifier_msg: str
+     
 CLASSIFIER_SYSTEM_PROMPT = """
     step 1:Analyze user input
 
         User input: 
-        
         ```text
         {user_input}
 
     step 2: Identify agent categories
-    
+
         Here is the list of available agent categories:
-        
-        - finance_agent (Handles financial queries and operations)
-        - human_resource_agent (Handles human resource queries and operations)
-        
+
+        - finance_agent (Handles: quotations, invoices, jobs/projects, clients/companies, financial documents, billing, pricing)
+        - hr_agent (Handles: employee management, hiring, payroll, HR policies, employee records)
+
+        - **IMPORTANT**: "job" in this context means a CLIENT PROJECT or WORK ORDER, NOT an employment position
         - **IMPORTANT**: use concise description for identified agent categories
         
-
-
-    step 5:Output format, MUST use **AgentClassifierOutput** schema: 
-        
+    step 3:Output format, MUST use **AgentClassifierOutput** schema: 
         ```json
         {{
-            "agents": ["<a list of agent names based on your inference>"],
-            "human_clarification_flag": <boolean, "True" if clarification is needed, "False" if not>
-            "messages": ["<inference result, if failure, reason why>"],
+            "identified_agents": ["<a list of agent names based on your inference>"],
+            "classifier_msg": "<inference result, if failure, reason why>",
         }}
         ```
 """

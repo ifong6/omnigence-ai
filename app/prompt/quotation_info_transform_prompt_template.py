@@ -8,12 +8,12 @@ QUOTATION_INFO_CSV_TRANSFORM_PROMPT_TEMPLATE = """
         
         3. quotation_no **MUST** use this format:
 
-            Q-JCP-{current_year}-{job_no_str}-{version_str}
+            Q-JCP-{current_year}-{job_no_str}-{revision_str}
 
             Where:
             - current_year: 2-digit year (e.g., "25" for 2025)
             - job_no_str: 2-digit job number (e.g., "01", "02")
-            - version_str: version number (e.g., "1")
+            - revision_str: revision number as 2-digit string (e.g., "00", "01", "02")
             
         4. Use the exact CSV headers: \
             date, quotation_no, client_name, client_address, project_name,total_amount,no,content,quantity,unit,unit_price,subtotal,currency
@@ -74,6 +74,6 @@ QUOTATION_INFO_CSV_TRANSFORM_PROMPT_TEMPLATE = """
     - job_no_str:
         {job_no_str}
 
-    - version_str:
-        {version_str}
+    - revision_str:
+        {revision_str}
 """
