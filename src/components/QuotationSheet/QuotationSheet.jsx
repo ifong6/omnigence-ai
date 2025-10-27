@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { exportQuotationPDF } from '../../utils/pdfExport'
 
 const QuotationSheet = ({ data, onSave }) => {
   const [formData, setFormData] = useState({
@@ -65,6 +64,7 @@ const QuotationSheet = ({ data, onSave }) => {
       }
     }
   }, [data])
+
 
   // 处理表格项的编辑
   const handleItemChange = (index, field, value) => {
@@ -173,28 +173,6 @@ const QuotationSheet = ({ data, onSave }) => {
     console.log(`🗑️ 删除项目行 ${index + 1}`)
   }
 
-  const handleDownloadPDF = async () => {
-    console.log('📥 准备导出PDF，报价单数据:', formData)
-    
-    // 临时隐藏不需要打印的元素
-    const hideElements = document.querySelectorAll('.hide-in-pdf')
-    hideElements.forEach(el => el.style.display = 'none')
-    
-    try {
-      // 使用html2pdf导出
-      const success = await exportQuotationPDF(formData)
-      
-      if (success) {
-        // 保存报价单
-        if (onSave) {
-          onSave(formData)
-        }
-      }
-    } finally {
-      // 恢复隐藏的元素
-      hideElements.forEach(el => el.style.display = '')
-    }
-  }
 
   return (
     <div id="quotation-sheet" className="px-4 mx-auto bg-white">
