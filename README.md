@@ -7,7 +7,6 @@
 - **AI对话生成**：通过自然语言对话收集项目信息
 - **智能报价单填充**：AI自动生成并填充报价单字段
 - **实时预览**：右侧实时显示报价单内容
-- **搜索功能**：快速检索历史报价单
 - **PDF导出**：一键导出专业PDF格式报价单
 - **本地存储**：自动保存历史报价单记录
 
@@ -24,10 +23,10 @@
 
 ```bash
 # 克隆项目
-git clone <repository-url>
+git clone https://github.com/ifong6/omnigence-ai.git
 
 # 进入项目目录
-cd Omnigence.ai
+cd omnigence-team/Omnigence.ai.frontend
 
 # 安装依赖（使用 Node.js 22）
 npm install
@@ -80,11 +79,10 @@ npm run preview
 ## 📁 项目结构
 
 ```
-Omnigence.ai/
+Omnigence.ai.frontend/
 ├── src/
 │   ├── components/          # React组件
 │   │   ├── ChatBox/        # 对话框组件
-│   │   ├── SearchBar/      # 搜索栏组件
 │   │   └── QuotationSheet/ # 报价单组件
 │   ├── services/           # API服务
 │   │   └── aiService.js    # AI模型接口
@@ -105,12 +103,12 @@ Omnigence.ai/
 
 ## 🔧 技术栈
 
-- **前端框架**：React 18
-- **构建工具**：Vite
-- **样式**：Tailwind CSS
+- **前端框架**：React 19
+- **构建工具**：Vite 7
+- **样式**：Tailwind CSS 4
 - **状态管理**：React Hooks
 - **存储**：LocalStorage
-- **PDF导出**：浏览器打印API
+- **PDF导出**：html2canvas + jsPDF
 
 ## 📝 使用说明
 
@@ -119,7 +117,7 @@ Omnigence.ai/
 1. 在左侧对话框中与AI交流
 2. 提供以下信息：
    - 客户公司名称
-   - 项目名称
+  pherd项目名称
    - 预算范围
    - 联系方式
    - 地址
@@ -127,15 +125,7 @@ Omnigence.ai/
 4. 可以手动编辑报价单内容
 5. 点击"Download PDF"导出
 
-### 2. 搜索历史报价单
-
-1. 在右上角搜索框输入：
-   - 报价单编号
-   - 客户名称
-   - 项目名称
-2. 系统会自动搜索并显示匹配结果
-
-### 3. 配置AI模型
+### 2. 配置AI模型
 
 编辑 `src/services/aiService.js` 文件：
 
@@ -148,7 +138,7 @@ const API_CONFIG = {
 ```
 
 支持的AI模型：
-- OpenAI GPT-4 / GPT-3.5
+- OpenAI GPT- ((/ GPT-3.5
 - Anthropic Claude
 - 其他兼容OpenAI格式的模型
 
