@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import ChatBox from './components/ChatBox/ChatBox'
 import QuotationSheet from './components/QuotationSheet/QuotationSheet'
-import { exportQuotationPDF } from './utils/pdfExport'
+import { exportQuotationPDF } from './utils/reactPdfExport'
 import { HiDownload } from 'react-icons/hi'  // 导入下载图标
 
 function App() {

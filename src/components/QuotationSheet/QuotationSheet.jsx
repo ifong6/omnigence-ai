@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import SignatureModal from '../SignatureModal/SignatureModal'
 
 const QuotationSheet = ({ data, onSave }) => {
   const [formData, setFormData] = useState({
@@ -21,7 +22,18 @@ const QuotationSheet = ({ data, onSave }) => {
       '2.本报价单按现场实际作为开设数量',
       '3.本工程不包括税费',
       '4.若因客情用申报后如果得到回答'
-    ]
+    ],
+    managerSignature: null,
+    managerSignDate: null,
+    technicianSignature: null,
+    technicianSignDate: null,
+  })
+
+  // 签名弹窗状态
+  const [signatureModal, setSignatureModal] = useState({
+    isOpen: false,
+    type: null, // 'manager' 或 'technician'
+    title: ''
   })
 
   // 用于跟踪上一次的报价单编号和客户名称
@@ -65,7 +77,6 @@ const QuotationSheet = ({ data, onSave }) => {
     }
   }, [data])
 
-
   // 处理表格项的编辑
   const handleItemChange = (index, field, value) => {
     const newItems = [...formData.items]
@@ -84,14 +95,26 @@ const QuotationSheet = ({ data, onSave }) => {
       console.log(`🧮 自动计算：${quantity} × ${unitPrice} = ${totalPrice}`)
     }
     
-    // 更新items
-    setFormData({
-      ...formData,
-      items: newItems
-    })
+    // 计算新的总金额
+    const total = newItems.reduce((sum, item) => {
+      const price = parseFloat(item.totalPrice) || 0
+      return sum + price
+    }, 0)
+    const formattedTotal = `MOP $ ${total.toFixed(2)}`
     
-    // 自动更新总金额
-    updateTotalAmount(newItems)
+    // 更新items和总金额
+    const updatedFormData = {
+      ...formData,
+      items: newItems,
+      totalAmount: formattedTotal
+    }
+    
+    setFormData(updatedFormData)
+    
+    // 通知父组件
+    if (onSave) {
+      onSave(updatedFormData)
+    }
     
     console.log(`📝 编辑项目 ${index + 1} 的 ${field}: ${value}`)
   }
@@ -173,6 +196,65 @@ const QuotationSheet = ({ data, onSave }) => {
     console.log(`🗑️ 删除项目行 ${index + 1}`)
   }
 
+  // 打开签名弹窗
+  const handleOpenSignature = (type) => {
+    const titles = {
+      manager: '管理顾问主席签名',
+      technician: '技术员签名'
+    }
+    
+    setSignatureModal({
+      isOpen: true,
+      type: type,
+      title: titles[type]
+    })
+  }
+
+  // 保存签名
+  const handleSaveSignature = ({ signature, date }) => {
+    const updatedFormData = {
+      ...formData,
+      ...(signatureModal.type === 'manager' ? {
+        managerSignature: signature,
+        managerSignDate: date
+      } : {
+        technicianSignature: signature,
+        technicianSignDate: date
+      })
+    }
+    
+    setFormData(updatedFormData)
+    
+    // 通知父组件
+    if (onSave) {
+      onSave(updatedFormData)
+    }
+    
+    console.log(`✍️ ${signatureModal.type === 'manager' ? '管理顾问' : '技术员'}签名完成`)
+  }
+
+  // 清除签名
+  const handleClearSignature = (type) => {
+    const updatedFormData = {
+      ...formData,
+      ...(type === 'manager' ? {
+        managerSignature: null,
+        managerSignDate: null
+      } : {
+        technicianSignature: null,
+        technicianSignDate: null
+      })
+    }
+    
+    setFormData(updatedFormData)
+    
+    // 通知父组件
+    if (onSave) {
+      onSave(updatedFormData)
+    }
+    
+    console.log(`🗑️ 清除${type === 'manager' ? '管理顾问' : '技术员'}签名`)
+  }
 
   return (
     <div id="quotation-sheet" className="px-4 mx-auto bg-white">
@@ -392,29 +474,94 @@ const QuotationSheet = ({ data, onSave }) => {
         <div className="">
           <div className="bg-gray-100 p-2 rounded-lg font-medium mb-4">Signature</div>
           <div className="grid grid-cols-2 gap-8">
+            {/* 管理顾问签名 */}
             <div>
-              <div className="flex items-center mb-3">
-                <span className="mr-2">管理顾问主席签名及确认:</span>
-                <div className="flex-1 py-2 border-b border-gray-400"></div>
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-sm">管理顾问主席签名及确认:</span>
+                  {formData.managerSignature && (
+                    <button
+                      onClick={() => handleClearSignature('manager')}
+                      className="text-xs text-red-600 hover:text-red-800 hide-in-pdf"
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+                {formData.managerSignature ? (
+                  <div className="border-2 border-gray-300 rounded p-2 bg-white">
+                    <img 
+                      src={formData.managerSignature} 
+                      alt="Manager Signature" 
+                      className="w-full h-20 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleOpenSignature('manager')}
+                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded hover:border-blue-500 hover:bg-blue-50 transition-colors text-gray-500 hover:text-blue-600 hide-in-pdf"
+                  >
+                    点击签名
+                  </button>
+                )}
               </div>
               <div className="flex items-center">
-                <span className="mr-2">日期:</span>
-                <div className="flex-1 py-2 border-b border-gray-400"></div>
+                <span className="mr-2 text-sm">日期:</span>
+                <div className="flex-1 py-2 border-b border-gray-400 text-sm">
+                  {formData.managerSignDate || ''}
+                </div>
               </div>
             </div>
+            
+            {/* 技术员签名 */}
             <div>
-              <div className="flex items-center mb-3">
-                <span className="mr-2">技术员:</span>
-                <div className="flex-1 py-2 border-b border-gray-400"></div>
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-sm">技术员:</span>
+                  {formData.technicianSignature && (
+                    <button
+                      onClick={() => handleClearSignature('technician')}
+                      className="text-xs text-red-600 hover:text-red-800 hide-in-pdf"
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+                {formData.technicianSignature ? (
+                  <div className="border-2 border-gray-300 rounded p-2 bg-white">
+                    <img 
+                      src={formData.technicianSignature} 
+                      alt="Technician Signature" 
+                      className="w-full h-20 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleOpenSignature('technician')}
+                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded hover:border-blue-500 hover:bg-blue-50 transition-colors text-gray-500 hover:text-blue-600 hide-in-pdf"
+                  >
+                    点击签名
+                  </button>
+                )}
               </div>
               <div className="flex items-center">
-                <span className="mr-2">日期:</span>
-                <div className="flex-1 py-2 border-b border-gray-400"></div>
+                <span className="mr-2 text-sm">日期:</span>
+                <div className="flex-1 py-2 border-b border-gray-400 text-sm">
+                  {formData.technicianSignDate || ''}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* 签名弹窗 */}
+      <SignatureModal
+        isOpen={signatureModal.isOpen}
+        title={signatureModal.title}
+        onSave={handleSaveSignature}
+        onClose={() => setSignatureModal({ isOpen: false, type: null, title: '' })}
+      />
 
     </div>
   )
