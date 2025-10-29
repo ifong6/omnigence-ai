@@ -10,7 +10,11 @@ app = FastAPI(title="Main Flow", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501"],
+    allow_origins=[
+        "http://localhost:8501",  # Streamlit UI
+        "http://localhost:5173",  # React UI (Vite)
+        "http://127.0.0.1:5173",  # React UI (alternative)
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,17 +1,54 @@
 version: '3.8'
 
 services:
-  omnigence-dev:
-    build: .
-    container_name: omnigence-ai
+  # 前端服务 - React + Vite
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omnigence-frontend
     ports:
       - "5173:5173"
     volumes:
-      - .:/app
-      - /app/node_modules
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.js:/app/vite.config.js
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./postcss.config.js:/app/postcss.config.js
     environment:
       - NODE_ENV=development
-    command: npm run dev -- --host 0.0.0.0
-    stdin_open: true
-    tty: true
+    depends_on:
+      - backend
+    networks:
+      - omnigence-network
+    restart: unless-stopped
+
+  # 后端服务 - FastAPI + Python
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: omnigence-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./main_server.py:/app/main_server.py
+      - ./main_flow:/app/main_flow
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - POSTGRES_HOST=${POSTGRES_HOST:-localhost}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-omnigence}
+      - POSTGRES_USER=${POSTGRES_USER:-admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    env_file:
+      - .env
+    networks:
+      - omnigence-network
+    restart: unless-stopped
+
+networks:
+  omnigence-network:
+    driver: bridge
 

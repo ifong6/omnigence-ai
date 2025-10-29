@@ -1,4 +1,4 @@
-# 使用 Node.js 22 官方镜像
+# 前端 Dockerfile - React + Vite
 FROM node:22-alpine
 
 # 设置工作目录
@@ -10,12 +10,12 @@ COPY package*.json ./
 # 安装依赖
 RUN npm install
 
-# 复制项目文件
+# 复制源代码
 COPY . .
 
-# 暴露 Vite 开发服务器端口
+# 暴露端口
 EXPOSE 5173
 
-# 默认命令
+# 启动开发服务器
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 

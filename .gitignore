@@ -27,3 +27,15 @@ dist-ssr
 .env
 .env.local
 .env.production
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info
+dist/
+build/
+*.db
+*.db-shm
+*.db-wal

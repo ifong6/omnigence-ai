@@ -34,33 +34,31 @@ npm install
 
 ### 开发
 
-**最简单的方式（推荐）：**
+**方式 1：Docker（推荐 - 无需安装 Node.js 和 Python）**
 
 ```bash
-# 方式 1：使用启动脚本
-./start-dev.sh
+# Windows 用户
+docker-start.bat
 
-# 方式 2：使用 npm 脚本
-npm run dev:node22
+# Linux/Mac 用户
+docker-compose up -d
+
+# 访问：http://localhost:5173
 ```
 
-**标准方式：**
+**方式 2：本地开发**
 
 ```bash
-# 如果已配置 Node.js 22 环境
+# 启动后端
+python main_server.py
+
+# 启动前端（新终端）
 npm run dev
 
-# 项目将在 http://localhost:5173 运行
+# 访问：http://localhost:5173
 ```
 
-**Docker 方式（完全隔离）：**
-
-```bash
-# 使用 Docker（无需安装 Node.js）
-docker-compose up
-```
-
-> 💡 **提示**：更多启动方式请查看 [快速开始指南](./QUICK_START.md)
+> 💡 **提示**：Docker 完整指南请查看 [DOCKER_GUIDE.md](./DOCKER_GUIDE.md)
 
 ### 构建
 
