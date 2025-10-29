@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { sendMessageToAI, generateQuotation } from '../../services/aiService'
+import { callMainFlow, resetSession, getSessionId } from '../../services/mainFlowService'
 import { HiPaperAirplane, HiMicrophone, HiPaperClip } from 'react-icons/hi'  // 导入图标
+
+// 🔧 配置开关：选择使用哪种实现
+const USE_MAIN_FLOW = true  // true: 使用 Main Flow，false: 使用直接 AI API
 
 // System Prompt：定义AI助手的角色和行为
 const SYSTEM_PROMPT = {
@@ -25,12 +29,15 @@ const ChatBox = ({ onQuotationGenerated }) => {
     {
       id: 1,
       role: 'assistant',
-      content: '您好！我是港珀工程顾问的AI助手。我可以帮您生成专业的工程报价单。\n\n请问您的项目是什么？',
+      content: USE_MAIN_FLOW 
+        ? '您好！我是 Omnigence AI 代理系统。我可以帮您处理报价单、项目管理等多种任务。\n\n请问有什么可以帮您？'
+        : '您好！我是港珀工程顾问的AI助手。我可以帮您生成专业的工程报价单。\n\n请问您的项目是什么？',
       timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     }
   ])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [sessionId] = useState(getSessionId())  // Main Flow session ID
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -56,45 +63,85 @@ const ChatBox = ({ onQuotationGenerated }) => {
     setIsLoading(true)
 
     try {
-      // 构建对话历史（包含System Prompt）
-      const conversationHistory = [
-        SYSTEM_PROMPT,
-        ...messages.map(msg => ({ role: msg.role, content: msg.content })),
-        { role: 'user', content: userMessage.content }
-      ]
+      if (USE_MAIN_FLOW) {
+        // ⭐ 使用 Main Flow（Multi-Agent 系统）
+        console.log('🚀 调用 Main Flow API...')
+        console.log('📝 Session ID:', sessionId)
+        console.log('💬 用户消息:', userMessage.content)
 
-      console.log('📤 发送对话历史到AI:', conversationHistory)
-
-      // ✅ 调用真实的AI API
-      const aiMessage = await sendMessageToAI(conversationHistory)
-      
-      console.log('📥 收到AI回复:', aiMessage)
-
-      const aiResponse = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: aiMessage.content,
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-      }
-      
-      setMessages(prev => [...prev, aiResponse])
-
-      // 检查是否提到"信息已收集完成"或"生成报价单"
-      if (aiMessage.content.includes('信息已收集完成') || 
-          aiMessage.content.includes('生成报价单')) {
-        console.log('🎯 检测到需要生成报价单，开始提取信息...')
+        const result = await callMainFlow(userMessage.content)
         
-        // 尝试从对话历史中提取项目信息
-        await handleGenerateQuotation([...messages, userMessage, aiResponse])
+        console.log('✅ Main Flow 响应:', result)
+
+        const aiResponse = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: typeof result.message === 'string' ? result.message : JSON.stringify(result.message),
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        }
+        
+        setMessages(prev => [...prev, aiResponse])
+
+        // 处理 Human-in-the-Loop 情况
+        if (result.needsHumanFeedback) {
+          console.log('🤝 需要人工确认')
+          
+          if (result.showQuoteForm && result.quotationData) {
+            // 显示报价单表单
+            if (onQuotationGenerated) {
+              onQuotationGenerated(result.quotationData)
+            }
+          }
+        }
+
+        // 检查是否包含报价单数据
+        if (result.data && result.data.quotation_data) {
+          console.log('📄 检测到报价单数据')
+          if (onQuotationGenerated) {
+            onQuotationGenerated(result.data.quotation_data)
+          }
+        }
+
+      } else {
+        // 🔵 使用直接 AI API（原实现）
+        const conversationHistory = [
+          SYSTEM_PROMPT,
+          ...messages.map(msg => ({ role: msg.role, content: msg.content })),
+          { role: 'user', content: userMessage.content }
+        ]
+
+        console.log('📤 发送对话历史到AI:', conversationHistory)
+
+        const aiMessage = await sendMessageToAI(conversationHistory)
+        
+        console.log('📥 收到AI回复:', aiMessage)
+
+        const aiResponse = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: aiMessage.content,
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        }
+        
+        setMessages(prev => [...prev, aiResponse])
+
+        // 检查是否提到"信息已收集完成"或"生成报价单"
+        if (aiMessage.content.includes('信息已收集完成') || 
+            aiMessage.content.includes('生成报价单')) {
+          console.log('🎯 检测到需要生成报价单，开始提取信息...')
+          await handleGenerateQuotation([...messages, userMessage, aiResponse])
+        }
       }
 
     } catch (error) {
-      console.error('❌ AI调用失败:', error)
+      console.error('❌ 调用失败:', error)
       
       const errorMessage = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: `❌ 抱歉，发生错误：${error.message}\n\n请检查：\n1. API配置是否正确\n2. 网络连接是否正常\n3. API密钥是否有效`,
+        content: USE_MAIN_FLOW
+          ? `❌ 抱歉，Main Flow 出现错误：${error.message}\n\n请检查：\n1. FastAPI 后端是否已启动（http://localhost:8000）\n2. 网络连接是否正常\n3. 查看浏览器控制台获取详细信息`
+          : `❌ 抱歉，发生错误：${error.message}\n\n请检查：\n1. API配置是否正确\n2. 网络连接是否正常\n3. API密钥是否有效`,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       }
       
@@ -183,13 +230,30 @@ const ChatBox = ({ onQuotationGenerated }) => {
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">X</span>
+            <span className="text-white font-bold text-xl">🤖</span>
           </div>
-          <h1 className="text-lg font-medium">XX公司的XX项目咨询</h1>
+          <div>
+            <h1 className="text-lg font-medium">
+              {USE_MAIN_FLOW ? 'Omnigence AI 代理系统' : 'XX公司的XX项目咨询'}
+            </h1>
+            {USE_MAIN_FLOW && (
+              <p className="text-xs text-gray-500">
+                <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                Multi-Agent Flow • Session: {sessionId.slice(-8)}
+              </p>
+            )}
+          </div>
         </div>
-        <button className="text-gray-500 hover:text-gray-700">
-          <span className="text-sm">Help</span> ❓
-        </button>
+        <div className="flex items-center space-x-2">
+          {USE_MAIN_FLOW && (
+            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              Main Flow
+            </span>
+          )}
+          <button className="text-gray-500 hover:text-gray-700">
+            <span className="text-sm">Help</span> ❓
+          </button>
+        </div>
       </div>
 
       {/* Messages Area */}

@@ -10,8 +10,8 @@ const getEnvConfig = () => ({
   AI_API_KEY: 'sk-MMWb8B4jvJ0SPV68RhwKIE04xPcv3fzM5ZUCYONwaxBXcbtD',
   AI_MODEL: 'gpt-4o-mini',
   
-  // 后端API配置
-  BACKEND_API_URL: 'http://localhost:3000/api',
+  // 后端API配置（Main Flow）
+  BACKEND_API_URL: 'http://localhost:8000',
   
   // 其他API配置
   TIMEOUT: 30000, // 30秒超时
@@ -38,6 +38,8 @@ export const apiConfig = {
     
     // API端点
     endpoints: {
+      callMainFlow: '/call-main-flow',        // 主工作流
+      humanFeedback: '/human-in-loop/feedback', // 人工反馈
       quotations: '/quotations',
       search: '/quotations/search',
       save: '/quotations/save',
