@@ -1,0 +1,60 @@
+# Node modules
+node_modules
+npm-debug.log
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv
+env
+*.egg-info
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Environment
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build output
+dist
+build
+
+# Logs
+*.log
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Documentation
+*.md
+docs/
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+.cache
+.temp
+
