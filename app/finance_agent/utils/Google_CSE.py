@@ -29,6 +29,83 @@ ADDR_HINTS = ("地址", "地點", "位置", "Add:", "Address", "地址：", "電
 # Pattern to extract address: street name + number + optional floor/unit
 ADDR_PATTERN = re.compile(r'([^\s:：]+(?:街|路|大馬路|馬路|巷|道)\d+(?:號|号)(?:[^:：\n]{0,20})?)', re.UNICODE)
 
+
+def _normalize_phone(phone: str) -> str:
+    """
+    Normalize phone number by removing all non-digit characters except leading +.
+    Example: '2831 4986. mark. 28314986' -> '28314986'
+    Example: '+853 2831 4986' -> '+85328314986'
+    """
+    if not phone:
+        return phone
+
+    # Keep only the first occurrence if duplicated
+    parts = phone.split()
+    if len(parts) > 1:
+        # Find the first valid 8-digit phone number
+        for part in parts:
+            digits_only = re.sub(r'[^\d]', '', part)
+            if len(digits_only) == 8:
+                phone = part
+                break
+
+    # Remove all spaces, dashes, dots, and other non-digit characters except leading +
+    if phone.startswith('+'):
+        normalized = '+' + re.sub(r'[^\d]', '', phone[1:])
+    else:
+        normalized = re.sub(r'[^\d]', '', phone)
+
+    return normalized
+
+
+def _normalize_address(address: str) -> str:
+    """
+    Normalize address by keeping only Chinese characters, digits, and building/floor markers.
+    Removes ALL English/Portuguese text completely.
+    Example: '菜園涌邊街濠江花園第2座18樓A: Marg Canal Hortas Hou Kong Gdn bl 2 18° A: 電話：28314986. mark. downLoad'
+             -> '菜園涌邊街濠江花園第2座18樓A'
+    """
+    if not address:
+        return address
+
+    # Split by colon and take the first part (usually the Chinese part)
+    parts = re.split(r'[:：]', address)
+    if parts:
+        address = parts[0].strip()
+
+    # Remove phone numbers from address
+    address = MACAU_PHONE.sub('', address)
+
+    # Remove ALL English/Portuguese words and markers
+    # Keep only: Chinese characters (including traditional/simplified), digits, and specific floor/unit markers
+    # This regex keeps: 中文字符 + digits + Chinese floor markers (樓/座/號/室/層/期/幢/棟 etc.)
+    # Remove everything else including: English letters, dots, degree symbols, etc.
+    cleaned_parts = []
+    current_chinese = ""
+
+    for char in address:
+        # Keep Chinese characters (CJK Unified Ideographs)
+        if '\u4e00' <= char <= '\u9fff':
+            current_chinese += char
+        # Keep digits
+        elif char.isdigit():
+            current_chinese += char
+        # Keep single uppercase letter at end (for unit like "A", "B", etc.)
+        elif char.isupper() and len(char) == 1:
+            # Only keep if it's likely a unit marker (preceded by floor number)
+            if current_chinese and (current_chinese[-1].isdigit() or current_chinese[-1] in '樓座室層'):
+                current_chinese += char
+        else:
+            # Skip all other characters (English words, punctuation, etc.)
+            continue
+
+    address = current_chinese
+
+    # Remove trailing markers and everything after
+    address = re.sub(r'(電話|Tel|Phone|Add|Address|地址|mark|downLoad).*$', '', address, flags=re.IGNORECASE)
+
+    return address.strip()
+
 def _extract_from_text(text: str, debug: bool = False) -> Tuple[Optional[str], Optional[str]]:
     """Extract address and phone number candidates from a snippet or page text."""
     text = html.unescape(text or "")
@@ -45,8 +122,16 @@ def _extract_from_text(text: str, debug: bool = False) -> Tuple[Optional[str], O
         # Clean up address by removing trailing "電話" or "Tel" markers
         addr = re.sub(r'(電話|Tel)[:：]?\s*$', '', addr, flags=re.IGNORECASE).strip()
         if debug:
-            print(f"DEBUG: Selected address from regex: {addr}")
-            print(f"DEBUG: Phone: {phone}")
+            print(f"DEBUG: Selected address from regex (before normalization): {addr}")
+            print(f"DEBUG: Phone (before normalization): {phone}")
+
+        # Apply normalization
+        addr = _normalize_address(addr) if addr else None
+        phone = _normalize_phone(phone) if phone else None
+
+        if debug:
+            print(f"DEBUG: Normalized address: {addr}")
+            print(f"DEBUG: Normalized phone: {phone}")
         return addr, phone
 
     # Fallback to line-by-line matching
@@ -62,9 +147,14 @@ def _extract_from_text(text: str, debug: bool = False) -> Tuple[Optional[str], O
                     print(f"DEBUG: Found address candidate: {line}")
 
     addr = min(candidates, key=len) if candidates else None
+
+    # Apply normalization
+    addr = _normalize_address(addr) if addr else None
+    phone = _normalize_phone(phone) if phone else None
+
     if debug:
-        print(f"DEBUG: Total line candidates: {len(candidates)}, Selected: {addr}")
-        print(f"DEBUG: Phone: {phone}")
+        print(f"DEBUG: Total line candidates: {len(candidates)}, Selected and normalized: {addr}")
+        print(f"DEBUG: Normalized phone: {phone}")
     return addr, phone
 
 

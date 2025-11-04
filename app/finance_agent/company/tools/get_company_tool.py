@@ -1,4 +1,5 @@
-from app.postgres.db_connection import execute_query
+from database.supabase.db_connection import execute_query
+from database.supabase.db_enum import DBTable_Enum
 
 
 def get_company_tool(tool_input) -> dict:
@@ -42,24 +43,24 @@ def get_company_tool(tool_input) -> dict:
         }
 
     if company_id:
-        query = """
+        query = f"""
             SELECT id, name, address, phone
-            FROM "Finance".company
+            FROM {DBTable_Enum.COMPANY_TABLE}
             WHERE id = %s
             LIMIT 1
         """
         params = (company_id,)
     else:
-        query = """
+        query = f"""
             SELECT id, name, address, phone
-            FROM "Finance".company
+            FROM {DBTable_Enum.COMPANY_TABLE}
             WHERE name = %s
             LIMIT 1
         """
-        params = (company_name.strip(),)
+        params = (company_name.strip() if company_name else None,)
 
     try:
-        rows = execute_query(query, params=params, fetch_results=True)
+        rows = execute_query(query, params=params, fetch=True)
 
         if not rows:
             return {

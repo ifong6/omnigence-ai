@@ -12,8 +12,8 @@ from app.finance_agent.utils.constants import (
     QuotationFields,
     ErrorMessages
 )
-from app.finance_agent.utils.db_helper import DatabaseError
-from app.postgres.db_connection import execute_query
+from database.db_helper import DatabaseError
+from database.supabase.db_connection import execute_query
 
 
 # ============================================================================
@@ -65,7 +65,7 @@ def _build_update_fields(
     field_mappings = {
         'project_item_description': (QuotationFields.PROJECT_ITEM_DESCRIPTION, str),
         'sub_amount': (QuotationFields.SUB_AMOUNT, float),
-        'amount': (QuotationFields.AMOUNT, float),
+        'quantity': (QuotationFields.QUANTITY, float),
         'unit': (QuotationFields.UNIT, str),
         'total_amount': (QuotationFields.TOTAL_AMOUNT, float),
         'currency': (QuotationFields.CURRENCY, str),
@@ -107,7 +107,7 @@ def _format_update_response(rows: List[Dict[str, Any]]) -> str:
             f"Quo No={row[QuotationFields.QUO_NO]}, "
             f"Item={row.get(QuotationFields.PROJECT_ITEM_DESCRIPTION)}, "
             f"Sub Amount={row.get(QuotationFields.SUB_AMOUNT)}, "
-            f"Amount={row.get(QuotationFields.AMOUNT)}, "
+            f"Quantity={row.get(QuotationFields.QUANTITY)}, "
             f"Unit={row.get(QuotationFields.UNIT)}, "
             f"Total={row.get(QuotationFields.TOTAL_AMOUNT)} {row.get(QuotationFields.CURRENCY)}, "
             f"Revision={row.get(QuotationFields.REVISION)}\n"
@@ -145,7 +145,7 @@ def update_quotation_tool(tool_input: Any) -> str:
     Optional Fields to Update:
         - project_item_description: New item description
         - sub_amount: New subtotal for the item
-        - amount: New quantity (e.g., 1, 2, 3)
+        - quantity: New quantity (e.g., 1, 2, 3)
         - unit: New unit type (e.g., "Lot", "Each")
         - total_amount: New total amount (same for all items)
         - currency: New currency code
@@ -219,7 +219,7 @@ def update_quotation_tool(tool_input: Any) -> str:
             WHERE {' AND '.join(where_conditions)}
             RETURNING {QuotationFields.ID}, {QuotationFields.QUO_NO},
                       {QuotationFields.PROJECT_ITEM_DESCRIPTION},
-                      {QuotationFields.SUB_AMOUNT}, {QuotationFields.AMOUNT},
+                      {QuotationFields.SUB_AMOUNT}, {QuotationFields.QUANTITY},
                       {QuotationFields.UNIT}, {QuotationFields.TOTAL_AMOUNT},
                       {QuotationFields.CURRENCY}, {QuotationFields.REVISION},
                       {QuotationFields.DATE_ISSUED}

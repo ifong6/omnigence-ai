@@ -19,6 +19,7 @@ class FinanceAgentState(BaseModel):
 
     # Response fields (final output only)
     quotation_response: Optional[dict] = None  # Formatted response for frontend
+    handler_result: Optional[dict] = None  # Result from handler execution (e.g., job creation)
 
     # Messages (LangGraph communication)
     messages: Optional[Annotated[list[AnyMessage], add_messages]] = []

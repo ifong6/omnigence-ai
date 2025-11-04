@@ -6,7 +6,7 @@ class JobInfo(BaseModel):
     type: str  # "Finance"."job_type" - "inspection" or "design"
     title: str
     status: str  # "Finance"."job_status", default 'New'
-    job_no: str  # Generated job number like JCP-24-03-1
+    job_no: str  
 
 
 class NewJobNumberOutput(BaseModel):
@@ -16,14 +16,23 @@ class NewJobNumberOutput(BaseModel):
     messages: List[str]
 
 REACT_PROMPT = '''
-    Answer the following questions as best you can. You have access to the following tools:
+    You are a job creation assistant. Your task is to create job records in the database based on user input.
 
+    IMPORTANT INSTRUCTIONS:
+    1. Extract company name and project title from the user input
+    2. Check if company exists using get_company_id_tool
+    3. If company doesn't exist, create it first using create_company_tool
+    4. Generate a job number using create_job_number_tool with the job type from the input
+    5. Create the job using create_job_tool with all required parameters
+    6. Provide a clear final answer indicating success or failure
+
+    Available tools:
     {tools}
 
     Use the following format:
 
     Question: the input question you must answer
-    Thought: you should always think about what to do
+    Thought: you should always think about what to do next
     Action: the action to take, should be one of [{tool_names}]
     Action Input: the input to the action
     Observation: the result of the action

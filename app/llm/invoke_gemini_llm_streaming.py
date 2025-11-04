@@ -19,8 +19,6 @@ def invoke_gemini_llm_streaming(prompt: str, config: Any = None, model: str = No
     Returns:
         Parsed JSON response or raw text
     """
-    print("[INVOKE][GEMINI_LLM][STREAMING]")
-
     if model is None:
         model = "gemini-2.5-flash"
 
@@ -68,7 +66,6 @@ def invoke_gemini_llm_streaming(prompt: str, config: Any = None, model: str = No
 
     try:
         parsed_response = json.loads(response_to_parse)
-        print(type(parsed_response))
         return parsed_response
     except json.JSONDecodeError as e:
         print(f"[WARN] Failed to parse JSON: {e}")

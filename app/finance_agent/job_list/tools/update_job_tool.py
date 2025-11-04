@@ -1,26 +1,40 @@
-"""
-Tool for updating existing jobs in the Finance database.
-
-This module provides functionality to update job records with improved:
-- Input validation
-- Error handling
-- Code organization
-- Type safety
-"""
-
 from typing import Any, Dict, Optional
-from app.finance_agent.utils.tool_input_parser import parse_tool_input, ToolInputError
-from app.finance_agent.utils.constants import (
-    JobType,
-    JobStatus,
-    QuotationStatus,
-    DatabaseSchema,
-    JobFields,
-    ErrorMessages,
-    SuccessMessages
-)
-from app.finance_agent.utils.db_helper import update_record, DatabaseError
+from app.finance_agent.utils.constants import JobFields
+from database.supabase.db_enum import DBTable_Enum
+from database.supabase.db_connection import execute_query
 
+# ============================================================================
+# Main Tool Function
+# ============================================================================
+
+def update_job_tool(tool_input: Any) -> str:
+    """
+    Update job fields by title. Use 'current' or 'now' for quotation_issued_at to set current timestamp.
+
+    IMPORTANT: Jobs are stored in separate tables:
+    - DESIGN jobs -> Finance.design_job table
+    - INSPECTION jobs -> Finance.inspection_job table
+
+    This tool will automatically find the correct table based on the job title.
+
+    Args:
+        tool_input: {"title": str (required), "job_type": str, "new_title": str, "status": str, "quotation_status": str, ...}
+
+    Returns:
+        Success message with updated job details or error message
+    """
+    title = tool_input['title']
+    job_type = tool_input['job_type']
+    new_title = tool_input['new_title']
+    status = tool_input['status']
+    quotation_status = tool_input['quotation_status']
+    quotation_issued_at = tool_input['quotation_issued_at']
+    date_created = tool_input['date_created']
+    job_no = tool_input['job_no']
+    company_id = tool_input['company_id']
+    id = tool_input['id']
+
+    return _format_success_message(job_type, id, company_id, title, status, job_no, date_created, quotation_status, quotation_issued_at)
 
 # ============================================================================
 # Business Logic Functions
@@ -46,13 +60,13 @@ def _validate_and_normalize_updates(
     # Normalize job type if provided
     if 'job_type' in params:
         try:
-            updates[JobFields.TYPE] = JobType.normalize(params['job_type'])
+            updates["type"] = params['job_type']
         except ValueError as e:
             raise ValueError(str(e))
 
     # Handle new title (rename field for clarity)
     if 'new_title' in params:
-        updates[JobFields.TITLE] = params['new_title']
+        updates["title"] = params['new_title']
 
     # Direct field mappings
     field_mappings = {
@@ -80,7 +94,8 @@ def _validate_and_normalize_updates(
 
 def _build_update_query(
     updates: Dict[str, Any],
-    title: str
+    title: str,
+    table: str
 ) -> tuple[str, tuple]:
     """
     Build SQL UPDATE query with proper handling of CURRENT_TIMESTAMP.
@@ -88,6 +103,7 @@ def _build_update_query(
     Args:
         updates: Validated field updates
         title: Job title to identify record
+        table: Table name (design_job or inspection_job)
 
     Returns:
         Tuple of (query_string, parameters_tuple)
@@ -107,10 +123,10 @@ def _build_update_query(
     params.append(title)
 
     query = f"""
-        UPDATE {DatabaseSchema.JOB_TABLE}
+        UPDATE {table}
         SET {', '.join(set_clauses)}
         WHERE {JobFields.TITLE} = %s
-        RETURNING {JobFields.ID}, {JobFields.COMPANY_ID}, {JobFields.TYPE},
+        RETURNING {JobFields.ID}, {JobFields.COMPANY_ID},
                   {JobFields.TITLE}, {JobFields.STATUS}, {JobFields.JOB_NO},
                   {JobFields.DATE_CREATED}, {JobFields.QUOTATION_STATUS},
                   {JobFields.QUOTATION_ISSUED_AT}
@@ -119,132 +135,51 @@ def _build_update_query(
     return query, tuple(params)
 
 
-def _format_success_message(job: Dict[str, Any]) -> str:
+def _find_job_table(title: str) -> Optional[tuple[str, str]]:
     """
-    Format success message with updated job details.
+    Find which table (design_job or inspection_job) contains the job with given title.
 
     Args:
-        job: Updated job record from database
+        title: Job title to search for
 
     Returns:
-        Formatted success message string
+        Tuple of (table_name, job_type) if found, None otherwise
     """
+
+
+    # Try design_job first
+    design_query = f"""
+        SELECT 1 FROM {DBTable_Enum.DESIGN_JOB_TABLE}
+        WHERE {JobFields.TITLE} = %s
+        LIMIT 1
+    """
+    design_result = execute_query(design_query, params=(title,), fetch=True)
+    if design_result:
+        return (DBTable_Enum.DESIGN_JOB_TABLE, 'DESIGN')
+
+    # Try inspection_job
+    inspection_query = f"""
+        SELECT 1 FROM {DBTable_Enum.INSPECTION_JOB_TABLE}
+        WHERE {JobFields.TITLE} = %s
+        LIMIT 1
+    """
+    inspection_result = execute_query(inspection_query, params=(title,), fetch=True)
+    if inspection_result:
+        return (DBTable_Enum.INSPECTION_JOB_TABLE, 'INSPECTION')
+
+    return None
+
+
+def _format_success_message(job_type: str, id: int, company_id: int, title: str, status: str, job_no: str, date_created: str, quotation_status: str, quotation_issued_at: str) -> str:
     return (
-        f"Successfully updated job: "
-        f"ID={job[JobFields.ID]}, "
-        f"Company ID={job[JobFields.COMPANY_ID]}, "
-        f"Type={job[JobFields.TYPE]}, "
-        f"Title={job[JobFields.TITLE]}, "
-        f"Status={job[JobFields.STATUS]}, "
-        f"Job No={job[JobFields.JOB_NO]}, "
-        f"Created={job[JobFields.DATE_CREATED]}, "
-        f"Quotation Status={job.get(JobFields.QUOTATION_STATUS)}, "
-        f"Quotation Issued At={job.get(JobFields.QUOTATION_ISSUED_AT)}"
+        f"Successfully updated {job_type} job: "
+        f"ID={id}, "
+        f"Company ID={company_id}, "
+        f"Title={title}, "
+        f"Status={status}, "
+        f"Job No={job_no}, "
+        f"Created={date_created}, "
+        f"Quotation Status={quotation_status}, "
+        f"Quotation Issued At={quotation_issued_at}"
     )
 
-
-# ============================================================================
-# Main Tool Function
-# ============================================================================
-
-def update_job_tool(tool_input: Any) -> str:
-    """
-    Update an existing job's fields by job title.
-
-    This tool provides flexible updates for job records, allowing updates to:
-    - Company assignment
-    - Job type (normalized to "Inspection" or "Design")
-    - Job title
-    - Job number
-    - Status
-    - Quotation status
-    - Quotation issued timestamp (supports 'current'/'now' for CURRENT_TIMESTAMP)
-
-    Args:
-        tool_input: Can be either:
-            - JSON string: '{"title": "Project Name", "status": "Completed"}'
-            - Dictionary: {"title": "Project Name", "quotation_status": "ISSUED"}
-
-    Required Parameter:
-        - title: Job title to identify which job to update
-
-    Optional Parameters:
-        - company_id: New company ID
-        - job_type: New job type ('inspection' or 'design')
-        - new_title: New title for the job
-        - job_no: New job number
-        - status: New status
-        - quotation_status: New quotation status (e.g., 'ISSUED', 'CREATED')
-        - quotation_issued_at: New timestamp or 'current'/'now' for current time
-
-    Returns:
-        Success message with updated job details, or error message
-
-    Examples:
-        >>> # Update quotation status
-        >>> update_job_tool({"title": "ABC Project", "quotation_status": "ISSUED"})
-
-        >>> # Update multiple fields
-        >>> update_job_tool({
-        ...     "title": "ABC Project",
-        ...     "status": "Completed",
-        ...     "quotation_issued_at": "current"
-        ... })
-
-    Error Handling:
-        - Returns descriptive error messages for:
-          - Missing title parameter
-          - Invalid JSON input
-          - No fields to update
-          - Job not found
-          - Database errors
-    """
-    try:
-        # Parse and validate input
-        params = parse_tool_input(
-            tool_input,
-            required_keys=['title'],
-            tool_name="update_job_tool"
-        )
-
-        title = params['title']
-
-        # Validate and normalize update fields
-        try:
-            updates = _validate_and_normalize_updates(params)
-        except ValueError as e:
-            return f"Error: {str(e)}"
-
-        # Check if there are any fields to update
-        if not updates:
-            return ErrorMessages.NO_ITEMS_TO_UPDATE
-
-        # Build and execute update query
-        query, query_params = _build_update_query(updates, title)
-
-        from app.postgres.db_connection import execute_query
-        rows = execute_query(
-            query=query,
-            params=query_params,
-            fetch_results=True
-        )
-
-        # Handle results
-        if rows:
-            return _format_success_message(rows[0])
-        else:
-            return ErrorMessages.RECORD_NOT_FOUND.format(
-                tool="update_job_tool",
-                entity="job",
-                field="title",
-                value=title
-            )
-
-    except ToolInputError as e:
-        return f"Error: {str(e)}"
-    except DatabaseError as e:
-        return f"Database error: {str(e)}"
-    except Exception as e:
-        error_msg = f"Unexpected error updating job: {str(e)}"
-        print(f"[ERROR][update_job_tool] {error_msg}")
-        return error_msg

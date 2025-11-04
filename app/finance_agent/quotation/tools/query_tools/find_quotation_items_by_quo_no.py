@@ -5,7 +5,8 @@ This module provides functionality to retrieve all project items
 associated with a specific quotation number from the database.
 """
 
-from app.postgres.db_connection import execute_query
+from database.supabase.db_connection import execute_query
+from database.supabase.db_enum import DBTable_Enum
 from typing import List, Dict, Any
 
 
@@ -33,7 +34,7 @@ def find_quotation_items_by_quo_no(quotation_no: str) -> List[Dict[str, Any]]:
                     "total_amount": 13000.0,
                     "currency": "MOP",
                     "revision": "00",
-                    "amount": 1.0,
+                    "quantity": 1.0,
                     "unit": "Lot"
                 },
                 ...
@@ -45,7 +46,7 @@ def find_quotation_items_by_quo_no(quotation_no: str) -> List[Dict[str, Any]]:
         >>> for item in items:
         ...     print(f"{item['project_item_description']}: {item['sub_amount']} {item['currency']}")
     """
-    query = """
+    query = f"""
         SELECT
             q.id,
             q.quo_no,
@@ -57,9 +58,9 @@ def find_quotation_items_by_quo_no(quotation_no: str) -> List[Dict[str, Any]]:
             q.total_amount,
             q.currency,
             q.revision,
-            q.amount,
+            q.quantity,
             q.unit
-        FROM "Finance".quotation q
+        FROM {DBTable_Enum.QUOTATION_TABLE} q
         WHERE q.quo_no = %s
         ORDER BY q.id ASC;
     """

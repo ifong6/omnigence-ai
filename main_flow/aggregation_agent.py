@@ -4,12 +4,14 @@ from main_flow.prompt.aggregation_prompt_template import (
     AggregationOutput
 )
 from app.llm.invoke_openai_llm import invoke_openai_llm
+from app.utils.response.legacy_adapter import adapt_legacy
+from app.utils.response.agent_response import ResponseStatus
 import json
 
 def aggregation_agent_node(state: MainFlowState):
     """
     Aggregation agent that synthesizes multiple agent responses into a coherent message.
-    Uses LLM to combine responses from finance_agent, hr_agent, etc. into a unified narrative.
+    Uses standardized AgentResponse contract for type-safe handling.
     """
     print("[INVOKE][aggregation_agent_node]")
 
@@ -25,48 +27,39 @@ def aggregation_agent_node(state: MainFlowState):
             }
         }
 
-    # Format agent responses into a list of strings
+    # Normalize all responses to standard format and track statuses
     formatted_responses = []
+    statuses = []
+
     for agent_name, response in agent_responses.items():
         print(f"\n[AGGREGATION] Processing {agent_name} response:")
 
-        # Extract relevant information from each agent's response
-        if isinstance(response, dict):
-            # For finance agent, extract key fields including job_type
-            if agent_name == "finance_agent":
-                response_parts = []
+        # Convert legacy response to standardized format
+        normalized = adapt_legacy(agent_name, response)
+        statuses.append(normalized.status)
 
-                # Add job_type if present (critical for job creation)
-                if "job_type" in response and response["job_type"]:
-                    response_parts.append(f"Job Type: {response['job_type'].capitalize()}")
+        print(f"[AGGREGATION] Normalized status: {normalized.status}")
 
-                # Add quotation_response if present
-                if "quotation_response" in response:
-                    quotation_data = response["quotation_response"]
-                    agent_output = quotation_data.get("agent_output", "No output")
-                    response_parts.append(agent_output)
+        # Build formatted response with agent-specific enhancements
+        response_parts = [normalized.message]
 
-                # Add other key fields
-                if "intents" in response:
-                    response_parts.append(f"Intents: {', '.join(response['intents'])}")
+        # Add critical fields for finance agent (job_type is important!)
+        if agent_name == "finance_agent" and normalized.data:
+            if "job_type" in normalized.data and normalized.data["job_type"]:
+                response_parts.insert(0, f"Job Type: {normalized.data['job_type'].capitalize()}")
+            if "intents" in normalized.data:
+                response_parts.append(f"Intents: {', '.join(normalized.data['intents'])}")
 
-                # Combine all parts
-                formatted_response = "\n".join(response_parts) if response_parts else json.dumps(response, indent=2)
-                formatted_responses.append(f"**{agent_name}**:\n{formatted_response}")
+        # Add warnings if present
+        if normalized.warnings:
+            response_parts.append(f"⚠️ Warnings: {', '.join(normalized.warnings)}")
 
-            # For HR agent or others, get agent_output or general result
-            elif "agent_output" in response:
-                formatted_responses.append(f"**{agent_name}**:\n{response['agent_output']}")
-            elif "result" in response:
-                result = response["result"]
-                if isinstance(result, dict) and "agent_output" in result:
-                    formatted_responses.append(f"**{agent_name}**:\n{result['agent_output']}")
-                else:
-                    formatted_responses.append(f"**{agent_name}**:\n{json.dumps(result, indent=2)}")
-            else:
-                formatted_responses.append(f"**{agent_name}**:\n{json.dumps(response, indent=2)}")
-        else:
-            formatted_responses.append(f"**{agent_name}**:\n{str(response)}")
+        # Add error details if present
+        if normalized.error_details:
+            response_parts.append(f"❌ Error: {normalized.error_details}")
+
+        formatted_text = "\n".join(response_parts)
+        formatted_responses.append(f"**{agent_name}**:\n{formatted_text}")
 
     # Combine all responses with newlines
     responses_text = "\n\n".join(formatted_responses)
@@ -79,14 +72,33 @@ def aggregation_agent_node(state: MainFlowState):
     print("\n[AGGREGATION] Invoking LLM for synthesis...")
     aggregation_result = invoke_openai_llm(synthesis_prompt, AggregationOutput)
 
-    synthesized_message = aggregation_result.synthesized_message
+    # Support both dict and Pydantic BaseModel returns
+    if isinstance(aggregation_result, dict):
+        synthesized_message = aggregation_result.get("synthesized_message", "")
+    else:
+        synthesized_message = getattr(aggregation_result, "synthesized_message", "")
+
+    if not synthesized_message:
+        print("[AGGREGATION] Warning: synthesized_message missing; using stringified result")
+        synthesized_message = str(aggregation_result)
 
     print(f"\n[AGGREGATION] Synthesized message:\n{synthesized_message}")
+
+    # Determine overall status based on normalized responses
+    overall_status = (
+        "success" if any(s == ResponseStatus.SUCCESS for s in statuses) and
+                    not any(s == ResponseStatus.ERROR for s in statuses) else
+        "partial" if any(s in [ResponseStatus.SUCCESS, ResponseStatus.PARTIAL] for s in statuses) else
+        "error" if any(s == ResponseStatus.ERROR for s in statuses) else
+        "empty"
+    )
+
+    print(f"[AGGREGATION] Overall status: {overall_status} (from {len(statuses)} agents)")
 
     # Build final response
     final_response = {
         "message": synthesized_message,
-        "status": "success",
+        "status": overall_status,
         "agent_responses": agent_responses  # Include raw responses for debugging
     }
 

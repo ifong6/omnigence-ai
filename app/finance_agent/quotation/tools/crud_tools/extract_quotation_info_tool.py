@@ -82,7 +82,7 @@ def _invoke_llm_extraction(prompt: str) -> QuotationInfo:
     parsed_response = invoke_openai_llm(prompt, QuotationInfoExtractOutput)
 
     # parsed_response is a Pydantic QuotationInfoExtractOutput object
-    # Access quotation_info via attribute (not .get())
+    # Access quotation_info via attribute
     return parsed_response.quotation_info
 
 
@@ -92,73 +92,13 @@ def _invoke_llm_extraction(prompt: str) -> QuotationInfo:
 
 def extract_quotation_info_tool(tool_input: Any) -> QuotationInfo | Dict[str, str]:
     """
-    Extract structured quotation information from user input using LLM.
-
-    This tool uses OpenAI's structured output to parse natural language quotation
-    requests into structured QuotationInfo objects containing:
-    - Client information (name, address, phone)
-    - Project details (name, items with descriptions and amounts)
-    - Quotation metadata (number, date, currency, totals)
+    Extract structured quotation data from user input using LLM.
 
     Args:
-        tool_input: Can be either:
-            - JSON string: '{"user_input": "...", "client_info": {...}, "quotation_no": "..."}'
-            - Dictionary with keys:
-                - user_input: User's quotation request (e.g., "支撐架計算 7000MOP")
-                - client_info: Dict with client details from get_client_info_by_project_name_tool
-                - quotation_no: Generated quotation number from create_quotation_no_tool
+        tool_input: {"user_input": str, "client_info": dict, "quotation_no": str}
 
     Returns:
-        QuotationInfo: Pydantic object with structured quotation data including:
-            - client_name, client_address, client_phone
-            - project_name
-            - project_items: List of items with content, quantity, unit, subtotal
-            - total_amount, currency
-            - date, no (quotation number)
-
-        On error: {"error": "error message"}
-
-    Examples:
-        >>> # Typical usage in agent workflow
-        >>> result = extract_quotation_info_tool({
-        ...     "user_input": "支撐架計算 7000MOP, 吊燈計算 6000MOP",
-        ...     "client_info": {
-        ...         "name": "ABC Engineering",
-        ...         "address": "123 Main St",
-        ...         "phone": "1234567"
-        ...     },
-        ...     "quotation_no": "Q-JCP-25-01-q1"
-        ... })
-        >>> # Returns: QuotationInfo(
-        >>> #     client_name="ABC Engineering",
-        >>> #     project_items=[
-        >>> #         ProjectItem(content="支撐架計算", quantity=1, unit="Lot", subtotal=7000),
-        >>> #         ProjectItem(content="吊燈計算", quantity=1, unit="Lot", subtotal=6000)
-        >>> #     ],
-        >>> #     total_amount=13000,
-        >>> #     ...
-        >>> # )
-
-    Workflow:
-        1. Parse and validate input parameters
-        2. Build extraction prompt with user input, client info, and quotation number
-        3. Invoke OpenAI LLM with structured output schema
-        4. Return extracted QuotationInfo object
-
-    LLM Prompt Details:
-        The LLM is prompted to:
-        - Parse item descriptions and amounts from natural language
-        - Default unit to "Lot" if not specified
-        - Default quantity to 1 if not specified
-        - Calculate total_amount as sum of all item subtotals
-        - Use provided client info and quotation number
-        - Use current date if not specified
-
-    Error Handling:
-        - Returns {"error": "..."} for:
-          - Missing required parameters
-          - Invalid JSON input
-          - LLM invocation failures
+        QuotationInfo object with client, project items, totals, etc. or {"error": "..."}
     """
     try:
         # Parse and validate input

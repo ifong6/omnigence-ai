@@ -6,6 +6,7 @@ This module provides functionality to create job records with improved:
 - Error handling
 - Code organization
 - Type safety
+- Repository pattern for clean database access
 """
 
 from typing import Any, Dict, Optional
@@ -13,12 +14,12 @@ from app.finance_agent.utils.tool_input_parser import parse_tool_input, ToolInpu
 from app.finance_agent.utils.constants import (
     JobType,
     JobStatus,
-    DatabaseSchema,
     JobFields,
-    ErrorMessages,
-    SuccessMessages
+    ErrorMessages
 )
-from app.finance_agent.utils.db_helper import insert_record, DatabaseError
+from app.finance_agent.repository.design_job_repo import DesignJobRepo
+from app.finance_agent.repository.inspection_job_repo import InspectionJobRepo
+from app.finance_agent.models.job import JobCreate, JobRow
 
 
 # ============================================================================
@@ -27,7 +28,7 @@ from app.finance_agent.utils.db_helper import insert_record, DatabaseError
 
 def _validate_and_normalize_job_data(
     params: Dict[str, Any]
-) -> Dict[str, Any]:
+) -> tuple[JobCreate, str]:
     """
     Validate and normalize job creation parameters.
 
@@ -35,7 +36,7 @@ def _validate_and_normalize_job_data(
         params: Raw job parameters from tool input
 
     Returns:
-        Dict of validated and normalized job fields
+        Tuple of (JobCreate TypedDict, job_type string)
 
     Raises:
         ValueError: If validation fails
@@ -53,45 +54,51 @@ def _validate_and_normalize_job_data(
     if not job_title:
         raise ValueError("job_title is required")
 
-    # Normalize job type
-    try:
-        normalized_job_type = JobType.normalize(job_type)
-    except ValueError as e:
-        raise ValueError(str(e))
+    # Normalize job type to uppercase
+    job_type_normalized = job_type.strip().upper()
 
-    # Build validated fields dict
-    job_data = {
-        JobFields.COMPANY_ID: company_id,
-        JobFields.TYPE: normalized_job_type,
-        JobFields.TITLE: job_title,
-        JobFields.STATUS: params.get('status', JobStatus.NEW.value),
-        JobFields.JOB_NO: params.get('job_no')
+    # Validate job type is either DESIGN or INSPECTION
+    if job_type_normalized not in [JobType.DESIGN, JobType.INSPECTION]:
+        raise ValueError(f"job_type must be 'DESIGN' or 'INSPECTION', got '{job_type}'")
+
+    # Build JobCreate TypedDict
+    # NOTE: status, quotation_status, quotation_issued_at have database defaults
+    # NOTE: 'type' field not included - table name (design_job/inspection_job) indicates job type
+    job_data: JobCreate = {
+        'company_id': company_id,
+        'title': job_title,
+        'status': 'NEW'  # type: ignore - must match database enum exactly
     }
 
-    return job_data
+    # Add optional job_no if provided
+    if params.get('job_no'):
+        job_data['job_no'] = params.get('job_no')
+
+    return job_data, job_type_normalized
 
 
-def _format_job_success_message(job: Dict[str, Any]) -> str:
+def _format_job_success_message(job_row: JobRow, job_type: str):
     """
     Format success message with created job details.
 
     Args:
-        job: Created job record from database
+        job_row: Created job record from database
+        job_type: Job type (DESIGN or INSPECTION)
 
     Returns:
         Formatted success message string
     """
     return (
-        f"Successfully created job: "
-        f"ID={job[JobFields.ID]}, "
-        f"Company ID={job[JobFields.COMPANY_ID]}, "
-        f"Type={job[JobFields.TYPE]}, "
-        f"Title={job[JobFields.TITLE]}, "
-        f"Status={job[JobFields.STATUS]}, "
-        f"Job No={job[JobFields.JOB_NO]}, "
-        f"Created={job[JobFields.DATE_CREATED]}"
-    )
-
+        f"Successfully created {job_type} job: "
+        f"ID={job_row['id']}, "
+        f"Company ID={job_row['company_id']}, "
+        f"Title={job_row['title']}, "
+        f"Status={job_row['status']}, "
+        f"Job No={job_row['job_no']}, "
+        f"Created={job_row['date_created']}, "
+        f"Quotation Status={job_row['quotation_status']}, "
+        f"Quotation Issued At={job_row['quotation_issued_at']}"
+)
 
 # ============================================================================
 # Main Tool Function
@@ -99,58 +106,26 @@ def _format_job_success_message(job: Dict[str, Any]) -> str:
 
 def create_job_tool(tool_input: Any) -> str:
     """
-    Create a new job in the database for a specific company.
+    Create a new job for a company. Get company_id first using get_company_id_tool.
 
-    Important: You MUST first get the company_id using get_company_id_tool.
-    If company doesn't exist, create it first using create_company_tool.
-
-    This tool creates a new job record with the following fields:
-    - Company assignment (via company_id)
-    - Job type (normalized to "Inspection" or "Design")
-    - Job title
-    - Job number (optional)
-    - Status (defaults to "New")
+    IMPORTANT: Jobs are stored in separate tables based on type:
+    - DESIGN jobs -> Finance.design_job table (via DesignJobRepo)
+    - INSPECTION jobs -> Finance.inspection_job table (via InspectionJobRepo)
 
     Args:
-        tool_input: Can be either:
-            - JSON string: '{"company_id": 17, "job_type": "inspection", ...}'
-            - Dictionary: {"company_id": 17, "job_type": "design", ...}
-
-    Required Parameters:
-        - company_id: ID of the company (must exist in company table)
-        - job_type: Type of job ('inspection' or 'design')
-        - job_title: Title/name of the job
-
-    Optional Parameters:
-        - job_no: Job number (can be assigned later)
-        - status: Job status (defaults to "New")
+        tool_input: {"company_id": int, "job_type": str, "job_title": str, "job_no": str (optional)}
+            - job_type: Must be "DESIGN" or "INSPECTION"
+            - status: Set automatically by database to "New"
 
     Returns:
-        Success message with created job details, or error message
+        Success message with job details or error message
 
     Examples:
-        >>> # Create inspection job
-        >>> create_job_tool({
-        ...     "company_id": 17,
-        ...     "job_type": "inspection",
-        ...     "job_title": "Building Safety Inspection"
-        ... })
+        >>> create_job_tool({"company_id": 5, "job_type": "DESIGN", "job_title": "空調系統設計", "job_no": "JCP-25-01-1"})
+        "Successfully created DESIGN job: ID=1, Company ID=5, Title=空調系統設計, Status=New, Job No=JCP-25-01-1, Created=2025-01-27"
 
-        >>> # Create design job with job number
-        >>> create_job_tool({
-        ...     "company_id": 17,
-        ...     "job_type": "design",
-        ...     "job_title": "Structural Design Project",
-        ...     "job_no": "JCP-2025-001",
-        ...     "status": "In Progress"
-        ... })
-
-    Error Handling:
-        - Returns descriptive error messages for:
-          - Missing required parameters
-          - Invalid JSON input
-          - Invalid job type
-          - Database errors (e.g., foreign key constraint if company_id doesn't exist)
+        >>> create_job_tool({"company_id": 3, "job_type": "INSPECTION", "job_title": "消防安全檢查", "job_no": "JICP-25-01-1"})
+        "Successfully created INSPECTION job: ID=2, Company ID=3, Title=消防安全檢查, Status=New, Job No=JICP-25-01-1, Created=2025-01-27"
     """
     try:
         # Parse and validate input
@@ -162,32 +137,27 @@ def create_job_tool(tool_input: Any) -> str:
 
         # Validate and normalize job data
         try:
-            job_data = _validate_and_normalize_job_data(params)
+            job_data, job_type = _validate_and_normalize_job_data(params)
         except ValueError as e:
             return f"Error: {str(e)}"
 
-        # Insert job record
-        job = insert_record(
-            table=DatabaseSchema.JOB_TABLE,
-            fields=job_data,
-            returning=f"{JobFields.ID}, {JobFields.COMPANY_ID}, {JobFields.TYPE}, "
-                     f"{JobFields.TITLE}, {JobFields.STATUS}, {JobFields.JOB_NO}, "
-                     f"{JobFields.DATE_CREATED}",
-            operation_name="create job"
-        )
-
-        if job:
-            return _format_job_success_message(job)
+        # Use appropriate repository based on job type
+        if job_type == JobType.DESIGN:
+            repo = DesignJobRepo()
+            design_job_row: JobRow = repo.create(job_data)
+        elif job_type == JobType.INSPECTION:
+            repo = InspectionJobRepo()
+            inspection_job_row: JobRow = repo.create(job_data)
         else:
-            return ErrorMessages.DB_QUERY_FAILED.format(
-                tool="create_job_tool",
-                error="No data returned from insert"
-            )
+            return f"Error: Invalid job_type '{job_type}'. Must be 'DESIGN' or 'INSPECTION'"
+
+        # Format and return success message
+        return _format_job_success_message(design_job_row if job_type == JobType.DESIGN else inspection_job_row, job_type)
 
     except ToolInputError as e:
         return f"Error: {str(e)}"
-    except DatabaseError as e:
-        return f"Database error: {str(e)}"
+    except ValueError as e:
+        return f"Validation error: {str(e)}"
     except Exception as e:
         error_msg = f"Unexpected error creating job: {str(e)}"
         print(f"[ERROR][create_job_tool] {error_msg}")

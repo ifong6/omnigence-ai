@@ -9,8 +9,6 @@ dotenv.load_dotenv()
 api_key = os.getenv('GOOGLE_API_KEY')
 
 def invoke_gemini_llm(prompt: str, config: Any = None, model: str = None):
-    print("[INVOKE][GEMINI_LLM]")
-
     if model is None:
         model = "gemini-2.5-flash"
 
@@ -28,13 +26,10 @@ def invoke_gemini_llm(prompt: str, config: Any = None, model: str = None):
     )
 
     parsed_response = json.loads(response.text)
-    print(type(parsed_response))
-
     return parsed_response
 
 
 def get_gemini_llm():
-    print("[GET][GEMINI_LLM]")
     return ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
         google_api_key=api_key,

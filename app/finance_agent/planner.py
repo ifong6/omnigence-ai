@@ -11,6 +11,7 @@ def planner_node(state: FinanceAgentState):
     system_prompt = PLANNING_PROMPT_TEMPLATE.format(intents=state.intents)
     parsed_response = invoke_openai_llm(system_prompt, PlannerOutput)
 
+    # Access as Pydantic model attributes
     print(f"  [DEBUG] Planner returned next_handlers: {parsed_response.next_handlers}")
     print(f"  [DEBUG] Type: {type(parsed_response.next_handlers)}")
 

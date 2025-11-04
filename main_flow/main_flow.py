@@ -1,14 +1,14 @@
-from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage
 from main_flow.agent_config.MainFlowState import MainFlowState
 from main_flow.agent_config.agent_registry import AGENT_NODES, STATIC_EDGES
+from langgraph.graph import StateGraph
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.runnables import RunnableConfig
-import requests
 from langgraph.types import Command
+from langchain_core.runnables import RunnableConfig
 from main_flow.utils.Request.UserRequest import UserRequest
 from main_flow.utils.Exception.InterrutpException import InterruptException
 import uuid
+from typing import cast
 
 workflow_builder = StateGraph(MainFlowState)
 # register nodes
@@ -35,11 +35,11 @@ def main_flow(user_request: UserRequest):
         "session_id": user_request.session_id,  # Pass session_id for logging
         "flow_uuid": flow_uuid,  # Unique identifier for this flow execution
     }
-    config: RunnableConfig = {
+    config = cast(RunnableConfig, {
         "configurable": {
             "thread_id": user_request.session_id
         }
-    }
+    })
     
     print("[MAIN FLOW] Invoking main agentic graph...\n")
     result = graph.invoke(initial_state, config=config)  # receive entire MainFlowState object here
@@ -70,11 +70,11 @@ def main_flow(user_request: UserRequest):
 #---------------------------------------------------------------#
 def resume_agent(user_request: UserRequest):
     print("[RESUME_AGENT] resume agentic graph...\n")
-    config: RunnableConfig = {
+    config = cast(RunnableConfig, {
         "configurable": {
             "thread_id": user_request.session_id
         }
-    }
+    })
 
     initial_state = {
         "human_feedback": [user_request.message],

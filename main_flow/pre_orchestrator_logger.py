@@ -4,7 +4,9 @@ from main_flow.prompt.pre_orchestrator_logger_prompt import (
     PreOrchestratorLoggerOutput
 )
 from app.llm.invoke_openai_llm import invoke_openai_llm
-from app.postgres.db_connection import execute_query
+from app.finance_agent.repository.flow_repo import FlowRepo
+from app.finance_agent.models.flow import FlowCreate
+from uuid import UUID
 
 
 def pre_orchestrator_logger_node(state: MainFlowState):
@@ -31,7 +33,7 @@ def pre_orchestrator_logger_node(state: MainFlowState):
 
     try:
         # Use LLM to generate summary
-        logger_output = invoke_openai_llm(prompt, PreOrchestratorLoggerOutput)
+        logger_output: PreOrchestratorLoggerOutput = invoke_openai_llm(prompt, PreOrchestratorLoggerOutput)
 
         summary = logger_output.summary
         user_intent = logger_output.user_intent
@@ -44,22 +46,22 @@ def pre_orchestrator_logger_node(state: MainFlowState):
         session_id = state.session_id
         print(f"[PRE_ORCHESTRATOR_LOGGER] Using session_id from client: {session_id}")
 
-        # Write to database
-        insert_query = """
-        INSERT INTO "Finance".flow
-        (id, session_id, identified_agents, user_request_summary)
-        VALUES (%s, %s, %s, %s)
-        """
-
-        params = (
-            flow_uuid,
-            session_id,
-            identified_agents,  # PostgreSQL array
-            summary,
-        )
-
+        # Write to database using FlowRepo
         print("[PRE_ORCHESTRATOR_LOGGER] Writing to database...")
-        execute_query(insert_query, params, fetch_results=False)
+        flow_repo = FlowRepo()
+
+        # Keep UUIDs as strings - psycopg2 will handle the conversion to uuid type
+        # Avoids "can't adapt type 'UUID'" error
+        flow_uuid_str = str(flow_uuid) if not isinstance(flow_uuid, str) else flow_uuid
+        session_uuid_str = str(session_id) if not isinstance(session_id, str) else session_id
+
+        flow_data: FlowCreate = {
+            'id': flow_uuid_str,
+            'session_id': session_uuid_str,
+            'identified_agents': identified_agents,
+            'user_request_summary': summary
+        }
+        flow_repo.create(flow_data)
         print(f"[PRE_ORCHESTRATOR_LOGGER] ✓ Successfully logged to flow_table with UUID: {flow_uuid}")
 
         # Return updated state with flow_uuid

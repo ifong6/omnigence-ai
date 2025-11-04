@@ -57,7 +57,7 @@ quotation_crud_tools = [
         func=update_quotation_tool,
         description="""Update existing quotation items in database.
         Required: quo_no. Optional: item_id or item_description to target specific items.
-        Can update: project_item_description, sub_amount, amount, unit, total_amount, currency, revision, date_issued.
+        Can update: project_item_description, sub_amount, quantity, unit, total_amount, currency, revision, date_issued.
         Example: Update item price, quantity, or description."""
     ),
     Tool(

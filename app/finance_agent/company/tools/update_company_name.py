@@ -1,25 +1,18 @@
-from app.postgres.db_connection import execute_query
+from database.supabase.db_connection import execute_query
+from database.supabase.db_enum import DBTable_Enum
 from typing import Optional
 import json
 
 
 def update_company_name(tool_input) -> dict:
     """
-    Update a company's name.
-
-    You can identify the company either by company_id OR company_name.
+    Update company name. Identify company by company_id or company_name.
 
     Args:
-        tool_input: Dict with keys {company_id OR company_name, new_name}
+        tool_input: {"company_id" or "company_name": ..., "new_name": str}
 
     Returns:
-        dict: {
-            "id": int,
-            "name": str,
-            "address": str or None,
-            "phone": str or None,
-            "status": "updated" or "error" or "not_found"
-        }
+        dict with id, name, address, phone, status ("updated", "error", or "not_found")
     """
 
     # Handle different input types from LangChain
@@ -60,13 +53,13 @@ def update_company_name(tool_input) -> dict:
 
     # Find the company
     if company_id:
-        query = "SELECT id, name, address, phone FROM \"Finance\".company WHERE id = %s LIMIT 1"
+        query = f"SELECT id, name, address, phone FROM {DBTable_Enum.COMPANY_TABLE} WHERE id = %s LIMIT 1"
         params = (company_id,)
     else:
-        query = "SELECT id, name, address, phone FROM \"Finance\".company WHERE name = %s LIMIT 1"
-        params = (company_name.strip(),)
+        query = f"SELECT id, name, address, phone FROM {DBTable_Enum.COMPANY_TABLE} WHERE name = %s LIMIT 1"
+        params = (company_name.strip() if company_name else None,)
 
-    existing = execute_query(query, params=params, fetch_results=True)
+    existing = execute_query(query, params=params, fetch=True)
 
     if not existing:
         return {
@@ -81,18 +74,26 @@ def update_company_name(tool_input) -> dict:
     # Update the company name
     try:
         rows = execute_query(
-            """
-            UPDATE "Finance".company
+            f"""
+            UPDATE {DBTable_Enum.COMPANY_TABLE}
             SET name = %s
             WHERE id = %s
             RETURNING id, name, address, phone
             """,
             params=(new_name.strip(), company_id),
-            fetch_results=True
+            fetch=True
         )
 
-        result = rows[0]
-        result["status"] = "updated"
+        result = rows[0] if rows else None
+        if result:
+            result["status"] = "updated"
+            result["message"] = f"Company ID {company_id} name updated successfully"
+            return result
+        else:
+            return {
+                "error": "Failed to update company name",
+                "status": "error"
+            }
         result["message"] = f"Company ID {company_id} name updated successfully"
         return result
 

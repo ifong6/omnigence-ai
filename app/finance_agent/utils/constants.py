@@ -13,11 +13,11 @@ from enum import Enum
 # ============================================================================
 
 class DatabaseSchema:
-    """Database schema and table names."""
-    FINANCE_SCHEMA = "Finance"
-    JOB_TABLE = f'"{FINANCE_SCHEMA}".job'
-    QUOTATION_TABLE = f'"{FINANCE_SCHEMA}".quotation'
-    COMPANY_TABLE = f'"{FINANCE_SCHEMA}".company'
+    """Database table names with schema qualification."""
+    DESIGN_JOB_TABLE = '"Finance".design_job'
+    INSPECTION_JOB_TABLE = '"Finance".inspection_job'
+    QUOTATION_TABLE = '"Finance".quotation'
+    COMPANY_TABLE = '"Finance".company'
 
 
 # ============================================================================
@@ -26,48 +26,20 @@ class DatabaseSchema:
 
 class JobType(str, Enum):
     """Valid job types in the system."""
-    INSPECTION = "Inspection"
-    DESIGN = "Design"
-
-    @classmethod
-    def normalize(cls, value: str) -> str:
-        """
-        Normalize job type string to match database enum.
-
-        Args:
-            value: Input job type (e.g., "inspection", "INSPECTION", "Inspection")
-
-        Returns:
-            Normalized job type (e.g., "Inspection")
-
-        Raises:
-            ValueError: If job type is not recognized
-        """
-        if not value:
-            raise ValueError("Job type cannot be empty")
-
-        value_lower = value.lower()
-        if value_lower == "inspection":
-            return cls.INSPECTION.value
-        elif value_lower == "design":
-            return cls.DESIGN.value
-        else:
-            raise ValueError(
-                f"Invalid job type: '{value}'. "
-                f"Must be one of: {', '.join([t.value for t in cls])}"
-            )
-
+    INSPECTION = "INSPECTION"
+    DESIGN = "DESIGN"
 
 class JobStatus(str, Enum):
-    """Valid job statuses."""
-    NEW = "New"
-    IN_PROGRESS = "In Progress"
-    COMPLETED = "Completed"
-    CANCELLED = "Cancelled"
+    """Valid job statuses - must match database enum values exactly."""
+    NEW = "NEW"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
 
 
 class QuotationStatus(str, Enum):
     """Valid quotation statuses."""
+    NOT_CREATED = "NOT_CREATED"
     CREATED = "CREATED"
     ISSUED = "ISSUED"
     ACCEPTED = "ACCEPTED"
@@ -158,7 +130,7 @@ class QuotationFields:
     TOTAL_AMOUNT = "total_amount"
     CURRENCY = "currency"
     REVISION = "revision"
-    AMOUNT = "amount"
+    QUANTITY = "quantity"  # Renamed from AMOUNT for clarity (stores item quantity, not price)
     UNIT = "unit"
 
 
@@ -166,6 +138,7 @@ class CompanyFields:
     """Field names for company table."""
     ID = "id"
     NAME = "name"
+    ALIAS = "alias"
     ADDRESS = "address"
     PHONE = "phone"
 

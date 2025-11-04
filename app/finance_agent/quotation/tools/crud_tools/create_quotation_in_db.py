@@ -15,8 +15,8 @@ from app.finance_agent.utils.constants import (
     QuotationDefaults,
     ErrorMessages
 )
-from app.finance_agent.utils.db_helper import DatabaseError
-from app.postgres.db_connection import execute_query
+from database.db_helper import DatabaseError
+from database.supabase.db_connection import execute_query
 from app.finance_agent.job_list.tools.create_company_tool import create_company_tool
 from app.prompt.quotation_prompt_template import QuotationInfo
 
@@ -142,7 +142,7 @@ def _insert_quotation_items(
                 {QuotationFields.TOTAL_AMOUNT},
                 {QuotationFields.CURRENCY},
                 {QuotationFields.REVISION},
-                {QuotationFields.AMOUNT},
+                {QuotationFields.QUANTITY},
                 {QuotationFields.UNIT}
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -151,7 +151,7 @@ def _insert_quotation_items(
                       {QuotationFields.PROJECT_NAME}, {QuotationFields.PROJECT_ITEM_DESCRIPTION},
                       {QuotationFields.SUB_AMOUNT}, {QuotationFields.TOTAL_AMOUNT},
                       {QuotationFields.CURRENCY}, {QuotationFields.REVISION},
-                      {QuotationFields.AMOUNT}, {QuotationFields.UNIT}
+                      {QuotationFields.QUANTITY}, {QuotationFields.UNIT}
             """,
             params=(
                 quotation_no,
@@ -163,7 +163,7 @@ def _insert_quotation_items(
                 float(quotation_info.total_amount),  # total_amount (same for all items)
                 quotation_info.currency,
                 str(revision),
-                float(item.quantity),  # amount field stores quantity
+                float(item.quantity),  # quantity field stores item quantity
                 item.unit  # unit field stores unit type (e.g., "Lot")
             ),
             fetch_results=True
@@ -201,7 +201,7 @@ def _format_creation_response(
                 "id": row[QuotationFields.ID],
                 "project_item_description": row[QuotationFields.PROJECT_ITEM_DESCRIPTION],
                 "sub_amount": row[QuotationFields.SUB_AMOUNT],
-                "amount": row[QuotationFields.AMOUNT],
+                "quantity": row[QuotationFields.QUANTITY],
                 "unit": row[QuotationFields.UNIT]
             }
             for row in inserted_rows
@@ -245,7 +245,7 @@ def create_quotation_in_db(tool_input: Any) -> Dict[str, Any]:
                         "id": 1,
                         "project_item_description": "支撐架計算",
                         "sub_amount": 7000.0,
-                        "amount": 1.0,
+                        "quantity": 1.0,
                         "unit": "Lot"
                     },
                     ...
@@ -272,12 +272,12 @@ def create_quotation_in_db(tool_input: Any) -> Dict[str, Any]:
         4. Insert one row per project item with:
            - Individual sub_amount per item
            - Shared total_amount across all items
-           - amount = item.quantity (e.g., 1)
+           - quantity = item.quantity (e.g., 1)
            - unit = item.unit (e.g., "Lot")
         5. Return success response with created items
 
     Field Mapping:
-        - amount ← item.quantity (numeric, e.g., 1)
+        - quantity ← item.quantity (numeric, e.g., 1)
         - unit ← item.unit (string, e.g., "Lot")
         - sub_amount ← item.subtotal (per item)
         - total_amount ← quotation_info.total_amount (same for all)

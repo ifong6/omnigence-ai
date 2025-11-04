@@ -1,5 +1,6 @@
 from langchain_core.tools import Tool
 from app.finance_agent.company.tools.create_company_tool import create_company_tool
+from app.finance_agent.company.tools.create_company_alias_tool import create_company_alias_tool
 from app.finance_agent.company.tools.update_company_name import update_company_name
 from app.finance_agent.company.tools.update_company_address import update_company_address
 from app.finance_agent.company.tools.update_company_phone import update_company_phone
@@ -55,6 +56,18 @@ company_crud_tools = [
         description=(
             "Get company information by company_name (string) or company_id (int). "
             "Returns company details including id, name, address, phone, or error if not found."
+        )
+    ),
+    Tool(
+        name="create_company_alias_tool",
+        func=create_company_alias_tool,
+        description=(
+            "Generate and assign an intelligent alias to a company using AI. "
+            "The AI will analyze the company name and create an appropriate abbreviation, acronym, or shortened form. "
+            "This helps users search for companies quickly using shorter names. "
+            "Input: company_name (string) or company_id (int). "
+            "Example: '澳門科技大學' → generates alias '澳科大'. "
+            "Returns updated company details with the new alias, status 'alias_created' or 'alias_updated'."
         )
     )
 ]

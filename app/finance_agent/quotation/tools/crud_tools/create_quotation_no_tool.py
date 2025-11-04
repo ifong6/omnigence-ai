@@ -14,8 +14,8 @@ from app.finance_agent.utils.constants import (
     QuotationPrefixes,
     QuotationDefaults
 )
-from app.finance_agent.utils.db_helper import DatabaseError
-from app.postgres.db_connection import execute_query
+from database.db_helper import DatabaseError
+from database.supabase.db_connection import execute_query
 
 
 # ============================================================================

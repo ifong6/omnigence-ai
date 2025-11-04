@@ -11,7 +11,7 @@ from app.finance_agent.utils.constants import (
     JobFields,
     CompanyFields
 )
-from app.postgres.db_connection import execute_query
+from database.supabase.db_connection import execute_query
 
 
 def get_client_info_by_project_name_tool(
@@ -19,7 +19,11 @@ def get_client_info_by_project_name_tool(
 ) -> Optional[Dict[str, Any]]:
     """
     Fetch the client information for a given project name by joining
-    the Finance.job and Finance.company tables.
+    the design_job/inspection_job and company tables.
+
+    IMPORTANT: Jobs are now stored in separate tables:
+    - Finance.design_job for DESIGN jobs
+    - Finance.inspection_job for INSPECTION jobs
 
     This tool is commonly used when creating quotations to retrieve the
     client's contact information (name, address, phone) for a specific project.
@@ -54,10 +58,9 @@ def get_client_info_by_project_name_tool(
         >>> # Returns: None
 
     Workflow:
-        1. Join job and company tables
-        2. Filter by project title (job.title)
-        3. Order by job ID descending to get most recent
-        4. Return company details if found, None otherwise
+        1. Try design_job table first (JOIN with company)
+        2. If not found, try inspection_job table (JOIN with company)
+        3. Return company details if found, None otherwise
 
     Usage Pattern:
         This tool is typically used during quotation creation:
@@ -89,7 +92,9 @@ def get_client_info_by_project_name_tool(
         - Returns the most recent job if multiple jobs have the same title
         - Returns None (not an error) if project doesn't exist
         - Company information comes from the job's associated company_id
+        - Since a company only does one type of job, searches design first then inspection
     """
+    # Try design_job first
     rows = execute_query(
         f"""
         SELECT
@@ -97,7 +102,34 @@ def get_client_info_by_project_name_tool(
             c.{CompanyFields.NAME},
             c.{CompanyFields.ADDRESS},
             c.{CompanyFields.PHONE}
-        FROM {DatabaseSchema.JOB_TABLE} j
+        FROM {DatabaseSchema.DESIGN_JOB_TABLE} j
+        INNER JOIN {DatabaseSchema.COMPANY_TABLE} c
+            ON j.{JobFields.COMPANY_ID} = c.{CompanyFields.ID}
+        WHERE j.{JobFields.TITLE} = %s
+        ORDER BY j.{JobFields.ID} DESC
+        LIMIT 1
+        """,
+        params=(project_name,),
+        fetch_results=True
+    )
+
+    if rows:
+        return {
+            CompanyFields.ID: rows[0][CompanyFields.ID],
+            CompanyFields.NAME: rows[0][CompanyFields.NAME],
+            CompanyFields.ADDRESS: rows[0][CompanyFields.ADDRESS],
+            CompanyFields.PHONE: rows[0][CompanyFields.PHONE]
+        }
+
+    # If not found in design_job, try inspection_job
+    rows = execute_query(
+        f"""
+        SELECT
+            c.{CompanyFields.ID},
+            c.{CompanyFields.NAME},
+            c.{CompanyFields.ADDRESS},
+            c.{CompanyFields.PHONE}
+        FROM {DatabaseSchema.INSPECTION_JOB_TABLE} j
         INNER JOIN {DatabaseSchema.COMPANY_TABLE} c
             ON j.{JobFields.COMPANY_ID} = c.{CompanyFields.ID}
         WHERE j.{JobFields.TITLE} = %s

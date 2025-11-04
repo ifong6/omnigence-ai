@@ -1,175 +1,189 @@
-from pydantic import BaseModel
-from app.postgres.db_connection import execute_query
-from app.llm.invoke_openai_llm import invoke_openai_llm
 from datetime import datetime
+import json
+from typing import List, Dict, Any
+from database.supabase.db_connection import execute_query
+from database.supabase.db_enum import DBTable_Enum
 
-class JobNumberOutput(BaseModel):
-    job_no: list[str]
+# ---- helpers ---------------------------------------------------------------
 
-# ====================
-# PROMPT COMPONENTS
-# ====================
+def _current_year_2() -> str:
+    """Get current year as 2-digit string (e.g., '25' for 2025)."""
+    return datetime.now().strftime("%y")
 
-ROLE = """You are a job number generator. Generate job numbers based on job type."""
-
-CRITICAL_PREFIX_RULE = """
-**CRITICAL PREFIX RULE - READ THIS FIRST:**
-• Inspection/checking/testing jobs → MUST use prefix "JICP"
-• Design/construction/other jobs → MUST use prefix "JCP"
-• Inspection-related keywords include: inspection, checking, survey, review, verification, testing, 檢測, 檢查, 巡查, 驗收, 測試
-• DO NOT confuse these prefixes. Double-check each job's type before assigning a prefix.
-"""
-
-CURRENT_STATE = """
-**Current State:**
-- Latest job_no in database: "{current_latest_job_no}"
-- Current year: 20{current_year}
-- Jobs to generate numbers for: {jobs_list}
-"""
-
-FORMAT = """
-**Job Number Format:** PREFIX-YY-NO-X
-"""
-
-INSPECTION_KEYWORDS = """
-**Inspection Keywords (use JICP prefix):**
-- English: "inspection", "checking", "survey", "review", "verification", "safety check", "testing", "assessment", "audit", "examination"
-- Chinese: "檢測", "檢查", "巡查", "驗收", "測試", "審查", "評估", "視察"
-"""
-
-PREFIX_RULES = """
-**PREFIX Rules (CASE INSENSITIVE):**
-- If job_type or job_title contains ANY inspection keyword above → use prefix "JICP"
-- Otherwise (design, construction, general projects) → use prefix "JCP"
-- CHECK EACH JOB'S TYPE INDIVIDUALLY AND APPLY THE CORRECT PREFIX
-"""
-
-YY_RULES = """
-**YY:** {current_year} (current year, 2 digits)
-"""
-
-NO_RULES = """
-**NO (Sequential Number):**
-1. If current_latest_job_no is "NONE": start at "01"
-2. Otherwise, parse the NO from current_latest_job_no (example: "JCP-25-03-1" means NO is "03")
-3. Start at parsed NO + 1, with 2-digit padding (example: "03" becomes "04", "09" becomes "10")
-4. For multiple jobs, increment NO by 1 for each subsequent job
-"""
-
-X_RULES = """
-**X (Sequential Number):**
-If there are multiple jobs, use "-1" for first job, "-2" for second job, and so on.
-"""
-
-CLASSIFICATION_PROCESS = """
-**CLASSIFICATION PROCESS (FOLLOW THESE STEPS):**
-
-For EACH job, follow this two-step process:
-
-Step 1 - Classify the job:
-• Read the job_type and job_title carefully
-• Ask: "Does this job involve checking, reviewing, testing, or verifying existing work?"
-  → YES = This is an INSPECTION job
-  → NO = This is a DESIGN/CONSTRUCTION/GENERAL job
-
-Step 2 - Apply the correct prefix:
-• INSPECTION jobs → JICP
-• DESIGN/CONSTRUCTION/GENERAL jobs → JCP
-
-**CRITICAL:** Each job MUST get the CORRECT PREFIX based on its classification!
-"""
-
-EXAMPLES = """
----------------
-
-Example 1:
-- Input: [{{"job_type": "inspection"}}, {{"job_type": "design"}}]
-- Latest: "JCP-25-05-1"
-- Output: {{"job_no": ["JICP-25-06-1", "JCP-25-07-2"]}}
-        (inspection gets JICP, design gets JCP)
-
-Example 2 (with Chinese titles):
-- Input: [
-    {{"job_type": "inspection", "job_title": "外牆檢測工程"}},
-    {{"job_type": "design", "job_title": "樓宇設計"}},
-    {{"job_type": "inspection", "job_title": "消防安全檢查"}}
-  ]
-- Latest: "JICP-25-10-1"
-- Output: {{"job_no": ["JICP-25-11-1", "JCP-25-12-2", "JICP-25-13-3"]}}
-        (檢測=inspection→JICP, 設計=design→JCP, 檢查=inspection→JICP)
-
-Example 3:
-- Input: [
-    {{"job_type": "construction", "job_title": "Building Construction"}},
-    {{"job_type": "inspection", "job_title": "Safety Verification"}}
-  ]
-- Latest: "NONE"
-- Output: {{"job_no": ["JCP-25-01-1", "JICP-25-02-2"]}}
-        (construction→JCP, verification=inspection→JICP)
-"""
-
-RETURN_FORMAT = """
-**Return format (use JobNumberOutput schema):**
-{{
-    "job_no": ["generated_number_1", "generated_number_2", ...]
-}}
-"""
-
-# ====================
-# COMBINED PROMPT
-# ====================
-
-PROMPT_TEMPLATE = (
-    ROLE + "\n\n" +
-    CRITICAL_PREFIX_RULE + "\n" +
-    CURRENT_STATE + "\n" +
-    FORMAT + "\n" +
-    INSPECTION_KEYWORDS + "\n" +
-    PREFIX_RULES + "\n" +
-    YY_RULES + "\n" +
-    NO_RULES + "\n" +
-    X_RULES + "\n" +
-    CLASSIFICATION_PROCESS + "\n" +
-    EXAMPLES + "\n" +
-    RETURN_FORMAT
-)
-
-def create_job_number_tool(list_of_jobs: list[dict]):
+def _prefix_for(job_type: str) -> str:
     """
-    Create new job number(s) for a specific new project(s).
+    Determine the job number prefix based on job type.
 
-    args:
-        list_of_jobs: list[dict] - Each dict should have 'job_type' field (Inspection/Design)
-        Example: [{"job_type": "Inspection", "job_title": "..."}, {"job_type": "Design", "job_title": "..."}]
+    Args:
+        job_type: Type of job (case-insensitive)
 
-    returns:
-        list[str]: The generated job numbers in order
+    Returns:
+        "JCP" for design jobs, "JICP" for inspection jobs
     """
+    # job_type can be any case; only two values are used to choose the table/prefix
+    jt = (job_type or "").strip().upper()
+    return "JCP" if jt == "DESIGN" else "JICP"   # default to JICP only if explicitly not DESIGN
 
-    # Get the latest job number from database
+def _table_for_prefix(prefix: str) -> str:
+    """
+    Get the database table name for a given prefix.
+
+    Args:
+        prefix: Job number prefix ("JCP" or "JICP")
+
+    Returns:
+        Table name string
+    """
+    return DBTable_Enum.DESIGN_JOB_TABLE if prefix == "JCP" \
+           else DBTable_Enum.INSPECTION_JOB_TABLE
+
+def _latest_seq_for_year(prefix: str, yy: str) -> int:
+    """
+    Read the latest job_no for this prefix and year, from its OWN table.
+    If none found for this year, return 0 (so next becomes 01).
+
+    Args:
+        prefix: Job number prefix ("JCP" or "JICP")
+        yy: Two-digit year string (e.g., "25")
+
+    Returns:
+        Latest sequential number for this prefix/year, or 0 if none found
+    """
+    table = _table_for_prefix(prefix)
+    # Fast filter by prefix and year, and order by the numeric middle part (NO) desc
     rows = execute_query(
-        query="""SELECT job_no
-            FROM "Finance".job
-            ORDER BY id DESC
+        query=f"""
+            SELECT job_no
+            FROM {table}
+            WHERE job_no LIKE %s
+            ORDER BY date_created DESC, id DESC
             LIMIT 1;
-            """,
-        fetch_results=True
+        """,
+        params=(f"{prefix}-{yy}-%",),
+        fetch=True,
     )
+    if not rows:
+        return 0
 
-    # Fix: Check if rows is empty, not if rows[0] is truthy
-    latest_job_no = rows[0]['job_no'] if rows else "NONE"
+    job_no = rows[0]["job_no"] or ""
+    # Expected: PREFIX-YY-NO-X
+    parts = job_no.split("-")
+    if len(parts) >= 4 and parts[1] == yy:
+        try:
+            return int(parts[2])
+        except ValueError:
+            return 0
+    return 0
 
-    # Get current year (2-digit format)
-    current_year = datetime.now().strftime("%y")
+def _ensure_list(input_val: Any) -> List[Dict[str, Any]]:
+    """
+    Convert input to list of dictionaries, handling JSON strings.
 
-    # Format the prompt with actual values
-    formatted_prompt = PROMPT_TEMPLATE.format(
-        current_latest_job_no=latest_job_no,
-        jobs_list=list_of_jobs,
-        current_year=current_year
-    )
+    Args:
+        input_val: Either a JSON string or a list of dicts
 
-    # Generate job numbers using LLM
-    job_number_output = invoke_openai_llm(formatted_prompt, JobNumberOutput)
+    Returns:
+        List of dictionaries
 
-    return job_number_output.job_no if job_number_output else []
+    Raises:
+        ValueError: If input cannot be converted to expected format
+    """
+    # Accept JSON string or list[dict]
+    if isinstance(input_val, str):
+        s = input_val.strip().strip('"').strip("'")
+        return json.loads(s)
+    if isinstance(input_val, list):
+        return input_val
+    raise ValueError(f"Invalid input type: {type(input_val)}; expected list or JSON list")
+
+# ---- main tool -------------------------------------------------------------
+
+def create_job_number_tool(list_of_jobs) -> List[str]:
+    """
+    Generate job numbers for new projects with independent counters per job type.
+
+    Input: [{'job_type': 'DESIGN'|'INSPECTION', 'job_title': '...'}, ...]
+    Output: ['JCP-25-01-1', 'JICP-25-03-1', ...]
+
+    Rules:
+      - DESIGN uses Finance.design_job only; INSPECTION uses Finance.inspection_job only
+      - Counter is per table and per year (YY)
+      - The last '-X' is a per-call, per-type running index starting at 1
+
+    Args:
+        list_of_jobs: List of job dictionaries or JSON string representation
+                     Each dict must have 'job_type' key
+
+    Returns:
+        List of generated job numbers (e.g., ["JCP-25-01-1", "JICP-25-03-1"])
+        On error, returns list with error message
+
+    Example:
+        >>> create_job_number_tool([
+        ...     {"job_type": "DESIGN", "job_title": "Building Design"},
+        ...     {"job_type": "INSPECTION", "job_title": "Safety Check"}
+        ... ])
+        ['JCP-25-01-1', 'JICP-25-01-1']
+    """
+    print(f"[DEBUG][create_job_number_tool] Received input type: {type(list_of_jobs)}")
+    print(f"[DEBUG][create_job_number_tool] Received input: {list_of_jobs}")
+
+    try:
+        jobs = _ensure_list(list_of_jobs)
+        print(f"[DEBUG][create_job_number_tool] Parsed jobs: {jobs}")
+    except Exception as e:
+        error_msg = f"Error: {e}"
+        print(f"[ERROR][create_job_number_tool] {error_msg}")
+        return [error_msg]
+
+    # Validate shape
+    for i, j in enumerate(jobs):
+        if not isinstance(j, dict) or "job_type" not in j:
+            error_msg = f"Error: item {i} must be a dict with 'job_type'"
+            print(f"[ERROR][create_job_number_tool] {error_msg}")
+            return [error_msg]
+
+    yy = _current_year_2()
+
+    # Pre-scan: find which types we have and fetch their latest seq once
+    types_present = {"DESIGN": False, "INSPECTION": False}
+    for j in jobs:
+        jt = (j.get("job_type") or "").strip().upper()
+        if jt == "DESIGN":
+            types_present["DESIGN"] = True
+        else:
+            types_present["INSPECTION"] = True  # treat everything else as INSPECTION for prefix/table
+
+    # Load current counters per type (based on their own table)
+    seq_by_type = {}
+    if types_present["DESIGN"]:
+        seq_by_type["DESIGN"] = _latest_seq_for_year("JCP", yy)
+        print(f"[DEBUG][create_job_number_tool] Latest DESIGN seq for {yy}: {seq_by_type['DESIGN']}")
+    if types_present["INSPECTION"]:
+        seq_by_type["INSPECTION"] = _latest_seq_for_year("JICP", yy)
+        print(f"[DEBUG][create_job_number_tool] Latest INSPECTION seq for {yy}: {seq_by_type['INSPECTION']}")
+
+    # Per-call, per-type suffix index: start at 1 and increment within this batch
+    suffix_idx_by_type = {"DESIGN": 0, "INSPECTION": 0}
+
+    out: List[str] = []
+    for j in jobs:
+        jt = (j.get("job_type") or "").strip().upper()
+        jt = "DESIGN" if jt == "DESIGN" else "INSPECTION"
+
+        prefix = "JCP" if jt == "DESIGN" else "JICP"
+
+        # bump table/year sequence
+        seq_by_type[jt] = seq_by_type.get(jt, 0) + 1
+        no_str = f"{seq_by_type[jt]:02d}"
+
+        # bump within-batch suffix per type
+        suffix_idx_by_type[jt] = suffix_idx_by_type.get(jt, 0) + 1
+        x = suffix_idx_by_type[jt]
+
+        job_number = f"{prefix}-{yy}-{no_str}-{x}"
+        print(f"[DEBUG][create_job_number_tool] Generated: {job_number} for {jt}")
+        out.append(job_number)
+
+    print(f"[DEBUG][create_job_number_tool] Final output: {out}")
+    return out

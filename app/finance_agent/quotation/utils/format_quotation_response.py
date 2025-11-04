@@ -120,7 +120,7 @@ def _print_tool_steps(
                     print(
                         f"         • {item.get('project_item_description')}: "
                         f"{item.get('sub_amount')} "
-                        f"(qty: {item.get('amount')}, unit: {item.get('unit')})"
+                        f"(qty: {item.get('quantity')}, unit: {item.get('unit')})"
                     )
 
             # Print UI formatting confirmation

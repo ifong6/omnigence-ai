@@ -50,31 +50,31 @@ def parse_tool_input(
     # Handle string input
     elif isinstance(tool_input, str):
         # Strip outer quotes if present (LangChain sometimes wraps JSON in quotes)
-        tool_input = tool_input.strip()
+        tool_input_str: str = tool_input.strip()
 
         # Strip markdown code fences if present (```json ... ```)
-        if tool_input.startswith("```json"):
-            tool_input = tool_input[7:]  # Remove ```json
-        elif tool_input.startswith("```"):
-            tool_input = tool_input[3:]  # Remove ```
-        if tool_input.endswith("```"):
-            tool_input = tool_input[:-3]  # Remove trailing ```
-        tool_input = tool_input.strip()
+        if tool_input_str.startswith("```json"):
+            tool_input_str = tool_input_str[7:]  # Remove ```json
+        elif tool_input_str.startswith("```"):
+            tool_input_str = tool_input_str[3:]  # Remove ```
+        if tool_input_str.endswith("```"):
+            tool_input_str = tool_input_str[:-3]  # Remove trailing ```
+        tool_input_str = tool_input_str.strip()
 
-        if (tool_input.startswith("'") and tool_input.endswith("'")) or \
-           (tool_input.startswith('"') and tool_input.endswith('"')):
-            tool_input = tool_input[1:-1]
+        if (tool_input_str.startswith("'") and tool_input_str.endswith("'")) or \
+           (tool_input_str.startswith('"') and tool_input_str.endswith('"')):
+            tool_input_str = tool_input_str[1:-1]
 
         # Replace Python None, True, False with JSON equivalents
         # Use word boundaries to avoid replacing these inside strings
         import re
-        tool_input = re.sub(r'\bNone\b', 'null', tool_input)
-        tool_input = re.sub(r'\bTrue\b', 'true', tool_input)
-        tool_input = re.sub(r'\bFalse\b', 'false', tool_input)
+        tool_input_str = re.sub(r'\bNone\b', 'null', tool_input_str)
+        tool_input_str = re.sub(r'\bTrue\b', 'true', tool_input_str)
+        tool_input_str = re.sub(r'\bFalse\b', 'false', tool_input_str)
 
         # Try to parse as JSON
         try:
-            params = json.loads(tool_input)
+            params = json.loads(tool_input_str)
             if not isinstance(params, dict):
                 raise ToolInputError(
                     f"{tool_name}: Parsed JSON is not a dictionary. Got: {type(params)}"

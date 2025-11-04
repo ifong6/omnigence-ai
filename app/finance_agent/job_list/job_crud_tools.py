@@ -1,6 +1,5 @@
 from langchain_core.tools import Tool
 from app.finance_agent.job_list.tools.create_job_tool import create_job_tool
-from app.finance_agent.job_list.tools.finance_db_health_check_tool import finance_db_health_check_tool
 from app.finance_agent.job_list.tools.create_company_tool import create_company_tool
 from app.finance_agent.job_list.tools.get_company_id_tool import get_company_id_tool
 from app.finance_agent.job_list.tools.extract_job_info_list_tool import extract_job_info_list_tool
@@ -12,11 +11,6 @@ job_crud_tools = [
         name="create_job_tool",
         func=create_job_tool,
         description="Create a new job in the database. IMPORTANT: First get company_id using get_company_id_tool. If company doesn't exist, create it first using create_company_tool. Required parameters: company_id (integer), job_type ('inspection' or 'design'), job_title (string), job_no (job number string like 'JCP-25-01-1'), status (optional, defaults to 'New')."
-    ),
-    Tool(
-        name="finance_db_health_check_tool",
-        func=finance_db_health_check_tool,
-        description="Check the health of the finance database."
     ),
     Tool(
         name="create_company_tool",
@@ -36,7 +30,7 @@ job_crud_tools = [
     Tool(
         name="create_job_number_tool",
         func=create_job_number_tool,
-        description="Create new job number(s) for a specific new project(s)."
+        description="Generate job number(s) for new project(s). Input: JSON list of job objects with 'job_type' and 'job_title'. Example: [{\"job_type\": \"inspection\", \"job_title\": \"消防安全檢查\"}]. Returns list of generated job numbers like ['JICP-25-01-1']. IMPORTANT: This tool ONLY generates job numbers, it does NOT create jobs in the database. After getting job numbers, you MUST call create_job_tool to actually save the job."
     ),
     Tool(
         name="update_job_tool",

@@ -1,0 +1,27 @@
+{
+  "include": [
+    "app",
+    "main_flow",
+    "test"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    ".venv",
+    "*.egg-info"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Darwin",
+  "extraPaths": [
+    "app",
+    "main_flow"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "reportUnusedImport": false,
+  "reportUnusedVariable": false,
+  "reportGeneralTypeIssues": false,
+  "stubPath": ".venv/lib/python3.11/site-packages"
+}

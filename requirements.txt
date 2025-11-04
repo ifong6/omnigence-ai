@@ -31,7 +31,7 @@ requests==2.32.3
 
 # CORS Middleware (included with FastAPI but explicit for clarity)
 # Note: CORSMiddleware comes with FastAPI via starlette
-langchain-openai==0.3.35
+langchain-openai>=0.1.0
 openai==2.3.0
 tiktoken==0.12.0
 

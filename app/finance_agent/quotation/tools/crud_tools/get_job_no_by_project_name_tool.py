@@ -9,16 +9,20 @@ from app.finance_agent.utils.constants import (
     DatabaseSchema,
     JobFields
 )
-from app.finance_agent.utils.db_helper import find_one_by_field
-
+from database.db_helper import find_one_by_field
+from database.supabase.db_connection import execute_query
 
 def get_job_no_by_project_name_tool(project_name: str) -> Optional[str]:
     """
-    Fetch the job_no of a given project name from the Finance.job table.
+    Fetch the job_no of a given project name from design_job or inspection_job tables.
+
+    IMPORTANT: Jobs are now stored in separate tables:
+    - Finance.design_job for DESIGN jobs
+    - Finance.inspection_job for INSPECTION jobs
 
     This tool searches for jobs by their title (project name) and returns the
-    most recent job number. This is commonly used when creating quotations, as
-    quotation numbers are derived from job numbers.
+    most recent job number. Since a company only does one type of job, this
+    function tries design_job first, then inspection_job.
 
     Args:
         project_name: The project title/name to search for (exact match)
@@ -31,47 +35,44 @@ def get_job_no_by_project_name_tool(project_name: str) -> Optional[str]:
     Examples:
         >>> # Find job number for existing project
         >>> job_no = get_job_no_by_project_name_tool("結構安全檢測")
-        >>> # Returns: "JCP-25-01-1"
+        >>> # Returns: "JCP-25-01-1" or "JICP-25-01-1"
 
         >>> # Project not found
         >>> job_no = get_job_no_by_project_name_tool("Non-existent Project")
         >>> # Returns: None
 
     Workflow:
-        1. Query job table by title (exact match)
-        2. Order by ID descending to get most recent
+        1. Try design_job table first
+        2. If not found, try inspection_job table
         3. Return job_no if found, None otherwise
-
-    Usage Pattern:
-        This tool is typically used as the first step in quotation creation:
-        1. Get job number by project name
-        2. Use job number to generate quotation number
-        3. Get client info by project name
-        4. Create quotation
-
-        Example agent workflow:
-        ```
-        job_no = get_job_no_by_project_name_tool("My Project")
-        if not job_no:
-            return "Error: Project not found"
-
-        quo_result = create_quotation_no_tool(job_no)
-        quotation_no = quo_result["quotation_no"]
-        ```
 
     Notes:
         - Uses exact match on project title (case-sensitive)
         - Returns the most recent job if multiple jobs have the same title
         - Returns None (not an error) if project doesn't exist
     """
-    from app.postgres.db_connection import execute_query
 
-    # Note: Using execute_query directly here instead of find_one_by_field
-    # because we need ORDER BY id DESC to get the most recent job
+    # Try design_job first
     rows = execute_query(
         f"""
         SELECT {JobFields.JOB_NO}
-        FROM {DatabaseSchema.JOB_TABLE}
+        FROM {DatabaseSchema.DESIGN_JOB_TABLE}
+        WHERE {JobFields.TITLE} = %s
+        ORDER BY {JobFields.ID} DESC
+        LIMIT 1
+        """,
+        params=(project_name,),
+        fetch_results=True
+    )
+
+    if rows:
+        return rows[0][JobFields.JOB_NO]
+
+    # If not found in design_job, try inspection_job
+    rows = execute_query(
+        f"""
+        SELECT {JobFields.JOB_NO}
+        FROM {DatabaseSchema.INSPECTION_JOB_TABLE}
         WHERE {JobFields.TITLE} = %s
         ORDER BY {JobFields.ID} DESC
         LIMIT 1

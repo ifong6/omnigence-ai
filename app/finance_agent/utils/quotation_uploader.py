@@ -1,4 +1,4 @@
-from finance_agent.agent_config.FinanceAgentState import FinanceAgentState
+from app.finance_agent.agent_config.FinanceAgentState import FinanceAgentState
 import logging
 import boto3
 from botocore.exceptions import ClientError
