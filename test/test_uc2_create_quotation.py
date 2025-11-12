@@ -2,7 +2,7 @@
 Test script for UC2 - Create Quotation
 
 This test verifies the Main Success Scenario (MSS) for UC2:
-1. Select existing Job → generate Quotation draft
+1. Select existing Job -> generate Quotation draft
 2. Edit quotation items, amounts, customer info
 3. Save quotation
 
@@ -13,127 +13,77 @@ Extensions tested:
 
 Reference: Use Cases Doc: Job & Quotation.md - UC2
 """
+
 import uuid
-from main_flow.main_flow import main_flow
-from main_flow.utils.Request.UserRequest import UserRequest
-# ========================================================================
-# TEST DATA - Centralized test inputs for easy review and maintenance
-# ========================================================================
+from app.main_flow.main_flow import main_flow
+from app.main_flow.utils.Request.UserRequest import UserRequest
+
 TEST_DATA = {
     # UC2 MSS: Create quotation by client/project name (no job ID)
-    "uc2_mss": {
-        "amount": "$45,000 MOP",
-        "create_job": "Create a job for 金龍建築工程有限公司, project: 結構安全檢測-buldingA",
-        "create_quotation": """Create a quotation for 金龍建築工程有限公司, project: 結構安全檢測-buldingA
-Items:
-foundation inspection 20000 MOP
-structural assessment 25000 MOP"""
-    },
-
-    # UC2-E2: Create quotation with Job ID
-    "uc2_e2": {
-        "job_id": "JICP-25-01-1",
-        "amount": "$45,000 MOP",
-        "create_job": "Create a job for 金龍建築工程有限公司, project: 結構安全檢測",
-        "create_quotation": """Create a quotation for job {job_id}
-Items:
-foundation inspection 20000 MOP
-structural assessment 25000 MOP"""
-    },
-
-    # UC2-E3: Multiple quotations for same job
-    "uc2_e3": {
-        "amount_1": "$50,000 MOP",
-        "amount_2": "$75,000 MOP",
-        "quotation_1": """Create a quotation for 金龍建築工程有限公司, project: 結構安全檢測
-Items:
-beam template calculation 25000 MOP
-wall template calculation 25000 MOP""",
-        "quotation_2": """Create another quotation for the same job
-Items:
-fire safety inspection 35000 MOP
-emergency exit assessment 40000 MOP"""
-    },
+   "uc2_mss": {
+    "input": """
+    Please create a new job for 金龍建築工程有限公司.
+    The project name is 結構安全檢測 - Building A. 
+    After that, create a quotation for the same project.
+    It should include:
+        - Foundation inspection: 20000 MOP
+        - Structural assessment: 25000 MOP
+    """
+    }
 }
 # ========================================================================
 
-
-def test_uc2_create_quotation_with_existing_job():
-    """UC2 MSS: Create quotation for existing job (user may not remember job ID)"""
+def test_uc2_create_job_and_quotation():
+    """UC2 MSS: Create job and quotation in single request (references by client/project)"""
     session_id = str(uuid.uuid4())
 
     try:
-        # Get test data
-        amount = TEST_DATA["uc2_mss"]["amount"]
-        create_job_input = TEST_DATA["uc2_mss"]["create_job"]
-        quotation_input = TEST_DATA["uc2_mss"]["create_quotation"].format(amount=amount)
+        # Get test data - single combined input that creates both job and quotation
+        user_input = TEST_DATA["uc2_mss"]["input"]
 
-        # First, create a job
-        print(f"\n[UC2 Setup] Creating job first - session_id: {session_id}")
-        print(f"[UC2 Setup] Input: {create_job_input}")
-        job_request = UserRequest(message=create_job_input, session_id=session_id)
-        job_result = main_flow(job_request)
-        print(f"[UC2 Setup] Job created: {job_result}")
+        # Create job and quotation in one request
+        print(f"\n[UC2 Test] Creating job and quotation - session_id: {session_id}")
+        print(f"[UC2 Test] Input: {user_input}")
+        request = UserRequest(message=user_input, session_id=session_id)
+        result = main_flow(request)
 
-        # Then create quotation (user references by client/project, not job ID)
-        print(f"\n[UC2 Test] Creating quotation - session_id: {session_id}")
-        print(f"[UC2 Test] Input: {quotation_input}")
-        quotation_request = UserRequest(message=quotation_input, session_id=session_id)
-        final_result = main_flow(quotation_request)
-
-        print(f"[UC2 Test] Final result: {final_result}")
+        print(f"[UC2 Test] Final result: {result}")
 
         # Check results
-        if job_result is None:
-            print("❌ UC2 Test - Create quotation with existing job: FAILED (Job creation failed)")
-            return False
-        if final_result is None:
-            print("❌ UC2 Test - Create quotation with existing job: FAILED (Quotation creation failed)")
+        if result is None:
+            print("❌ UC2 Test - Create job and quotation: FAILED")
             return False
 
-        print("✅ UC2 Test - Create quotation with existing job: PASSED")
+        print("✅ UC2 Test - Create job and quotation: PASSED")
         return True
 
     except ConnectionError as e:
-        print(f"❌ UC2 Test - Create quotation with existing job: FAILED (Server not active - {e})")
+        print(f"❌ UC2 Test - Create job and quotation: FAILED (Server not active - {e})")
         return False
     except Exception as e:
-        print(f"❌ UC2 Test - Create quotation with existing job: FAILED (Error: {e})")
+        print(f"❌ UC2 Test - Create job and quotation: FAILED (Error: {e})")
         return False
 
 
 def test_uc2_e2_create_quotation_with_job_id():
-    """UC2 Extension E2: Create quotation using Job ID (user remembers job number)"""
+    """UC2 Extension E2: Create quotation using Job ID (user knows specific job number)"""
     session_id = str(uuid.uuid4())
 
     try:
-        # Get test data
-        amount = TEST_DATA["uc2_e2"]["amount"]
-        job_id = TEST_DATA["uc2_e2"]["job_id"]
-        create_job_input = TEST_DATA["uc2_e2"]["create_job"]
-        quotation_input = TEST_DATA["uc2_e2"]["create_quotation"].format(job_id=job_id, amount=amount)
+        # Get test data - input already includes job ID reference
+        user_input = TEST_DATA["uc2_e2"]["input"]
 
-        # First, create a job to get a job ID
-        print(f"\n[UC2-E2 Setup] Creating job first - session_id: {session_id}")
-        print(f"[UC2-E2 Setup] Input: {create_job_input}")
-        job_request = UserRequest(message=create_job_input, session_id=session_id)
-        job_result = main_flow(job_request)
-        print(f"[UC2-E2 Setup] Job created: {job_result}")
-
-        # User creates quotation using specific job ID (assumes they remember/have the job number)
+        # User creates quotation referencing specific job ID
         print(f"\n[UC2-E2 Test] Creating quotation with Job ID - session_id: {session_id}")
-        print(f"[UC2-E2 Test] Input: {quotation_input}")
-        quotation_request = UserRequest(message=quotation_input, session_id=session_id)
-        quotation_result = main_flow(quotation_request)
+        print(f"[UC2-E2 Test] Input: {user_input}")
+        request = UserRequest(message=user_input, session_id=session_id)
+        result = main_flow(request)
 
-        print(f"[UC2-E2 Test] Quotation result: {quotation_result}")
+        print(f"[UC2-E2 Test] Quotation result: {result}")
 
         # Check results
-        if job_result is None:
-            print("❌ UC2-E2 Test - Create quotation with Job ID: FAILED (Job creation failed)")
-            return False
-        if quotation_result is None:
-            print("❌ UC2-E2 Test - Create quotation with Job ID: FAILED (Quotation creation failed)")
+        if result is None:
+            print("❌ UC2-E2 Test - Create quotation with Job ID: FAILED")
             return False
 
         print("✅ UC2-E2 Test - Create quotation with Job ID: PASSED")
@@ -152,23 +102,21 @@ def test_uc2_e3_multiple_quotations_for_same_job():
     session_id = str(uuid.uuid4())
 
     try:
-        # Get test data
-        amount_1 = TEST_DATA["uc2_e3"]["amount_1"]
-        amount_2 = TEST_DATA["uc2_e3"]["amount_2"]
-        quotation_1_input = TEST_DATA["uc2_e3"]["quotation_1"].format(amount_1=amount_1)
-        quotation_2_input = TEST_DATA["uc2_e3"]["quotation_2"].format(amount_2=amount_2)
+        # Get test data - two separate quotation requests for same job
+        input_1 = TEST_DATA["uc2_e3"]["input_1"]
+        input_2 = TEST_DATA["uc2_e3"]["input_2"]
 
         # First quotation
         print(f"\n[UC2-E3 Test] First quotation - session_id: {session_id}")
-        print(f"[UC2-E3 Test] Input: {quotation_1_input}")
-        request_1 = UserRequest(message=quotation_1_input, session_id=session_id)
+        print(f"[UC2-E3 Test] Input: {input_1}")
+        request_1 = UserRequest(message=input_1, session_id=session_id)
         result_1 = main_flow(request_1)
         print(f"[UC2-E3 Test] First quotation result: {result_1}")
 
         # Second quotation for same job (extended quotation)
         print(f"\n[UC2-E3 Test] Second quotation - session_id: {session_id}")
-        print(f"[UC2-E3 Test] Input: {quotation_2_input}")
-        request_2 = UserRequest(message=quotation_2_input, session_id=session_id)
+        print(f"[UC2-E3 Test] Input: {input_2}")
+        request_2 = UserRequest(message=input_2, session_id=session_id)
         result_2 = main_flow(request_2)
         print(f"[UC2-E3 Test] Second quotation result: {result_2}")
 
@@ -184,13 +132,12 @@ def test_uc2_e3_multiple_quotations_for_same_job():
         return True
 
     except ConnectionError as e:
-        print(f"❌ UC2-E3 Test - Multiple quotations for same job: FAILED (Server not active - {e})")
+        print("❌ UC2-E3 Test - Multiple quotations for same job: FAILED (Server not active - {e})")
         return False
     except Exception as e:
         print(f"❌ UC2-E3 Test - Multiple quotations for same job: FAILED (Error: {e})")
-        
+        return False
+
 if __name__ == "__main__":
-    test_uc2_create_quotation_with_existing_job()
-    test_uc2_e2_create_quotation_with_job_id()
-    test_uc2_e3_multiple_quotations_for_same_job()
+    test_uc2_create_job_and_quotation()
   

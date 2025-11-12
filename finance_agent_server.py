@@ -27,6 +27,6 @@ if __name__ == '__main__':
     uvicorn.run(
         "finance_agent_server:app",
         host="127.0.0.1",
-        port=8001,  # Finance agent port as defined in orchestrator_agent
+        port=8001,  # Finance agent port as defined in workflow_router
         reload=True
     )

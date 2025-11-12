@@ -1,12 +1,17 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from main_flow.main_flow import main_flow, resume_agent
+from main_flow.workflow_router import orchestrator_agent_flow
 from main_flow.utils.Exception.InterrutpException import InterruptException
+from main_flow.utils.Request.UserRequest import UserRequest
 
 # Create FastAPI app
-app = FastAPI(title="Main Flow", version="1.0.0")
+app = FastAPI(
+    title="Product v01 - Finance & Job Management API",
+    version="1.0.0",
+    description="Multi-agent system with finance and job management workflows"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,15 +23,26 @@ app.add_middleware(
 
 thread_store = {}
 
-class UserRequest(BaseModel):
-    message: str
-    session_id: str
+@app.get("/")
+def root():
+    """Root endpoint with API information."""
+    return {
+        "title": "Product v01 API",
+        "version": "1.0.0",
+        "endpoints": {
+            "agents": {
+                "orchestrator_agent": "/call-orchestrator-agent",
+                "human_feedback": "/human-in-loop/feedback"
+            },
+            "docs": "/docs"
+        }
+    }
 
-@app.post("/call-main-flow")
-def call_main_flow(user_request: UserRequest):
+@app.post("/call-orchestrator-agent")
+def call_orchestrator_agent(user_request: UserRequest):
     print(f"Server received request:{user_request.session_id} {user_request.message}\n")
     try:
-        final_result = main_flow(user_request)
+        final_result = orchestrator_agent_flow(user_request)
 
         return {
             "status": "success",

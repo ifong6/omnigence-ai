@@ -2,7 +2,7 @@ from app.finance_agent.agent_config.FinanceAgentState import FinanceAgentState
 from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 from typing import List, Optional
-from app.llm.invoke_openai_llm import invoke_openai_llm
+from app.llm.invoke_claude_llm import invoke_claude_llm
 
 class FinanceIntentOutput(BaseModel):
     intents: List[str]
@@ -58,10 +58,10 @@ def intent_analyzer_node(state: FinanceAgentState):
     print("[HANDLER_INVOKE][intent_analyzer_node]")
 
     system_prompt = FINANCE_INTENT_ANALYZER_PROMPT.format(user_input=state.user_input)
-    parsed_response = invoke_openai_llm(system_prompt, FinanceIntentOutput)
+    parsed_response = invoke_claude_llm(system_prompt, FinanceIntentOutput)
 
     try:
-        # parsed_response is a Pydantic object from invoke_openai_llm
+        # parsed_response is a Pydantic object from invoke_gemini_llm
         print(f"[DEBUG] parsed_response type: {type(parsed_response)}")
         print(f"[DEBUG] parsed_response: {parsed_response}")
 

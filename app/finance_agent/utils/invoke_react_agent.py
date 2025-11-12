@@ -1,10 +1,10 @@
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools.render import render_text_description_and_args
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.agents.output_parsers.react_single_input import ReActSingleInputOutputParser
-from app.llm.invoke_openai_llm import get_openai_llm
-from app.prompt.job_crud_prompt import REACT_PROMPT
-from typing import List, Any
+from langchain_classic.agents import create_react_agent, AgentExecutor
+from langchain_classic.agents.output_parsers.react_single_input import ReActSingleInputOutputParser
+from app.llm.invoke_claude_llm import get_claude_llm
+from app.prompt.legacy.job_crud_prompt import REACT_PROMPT
+from typing import List, Any, Optional
 
 
 def invoke_react_agent(
@@ -13,31 +13,17 @@ def invoke_react_agent(
     verbose: bool = True,
     handle_parsing_errors: bool = True,
     max_iterations: int = 5,
-    return_intermediate_steps: bool = True
+    return_intermediate_steps: bool = True,
+    prompt_template: Optional[str] = None
 ) -> Any:
-    """
-    Create and invoke a ReAct agent with the given tools and user input.
+    template = prompt_template if prompt_template is not None else REACT_PROMPT
 
-    Args:
-        tools: List of tools to be used by the agent
-        user_input: The user input to process
-        verbose: Whether to print verbose output (default: True)
-        handle_parsing_errors: Whether to handle parsing errors (default: True)
-        max_iterations: Maximum number of iterations (default: 5)
-        return_intermediate_steps: Whether to return intermediate steps (default: True)
-
-    Returns:
-        dict: Response from the agent executor
-
-    Example:
-        response = invoke_react_agent(tools=job_crud_tools, user_input=state.user_input)
-    """
     prompt = PromptTemplate(
         input_variables=["input", "tools", "tool_names", "agent_scratchpad"],
-        template=REACT_PROMPT
+        template=template
     )
 
-    llm = get_openai_llm()
+    llm = get_claude_llm()
 
     agent = create_react_agent(
         llm=llm,

@@ -5,7 +5,6 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 dotenv.load_dotenv()
-api_key = os.getenv('OPENAI_API_KEY')
 
 
 def invoke_openai_llm(prompt: str, config: Any = None) -> Any:
@@ -28,8 +27,7 @@ def invoke_openai_llm(prompt: str, config: Any = None) -> Any:
 def _get_openai_llm():
     return ChatOpenAI(
         model="gpt-4o",
-        api_key=api_key,
-        temperature=0
+        temperature=0.7
     )
 
 

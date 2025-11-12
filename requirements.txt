@@ -3,11 +3,11 @@ fastapi==0.115.6
 uvicorn==0.34.0
 streamlit==1.41.1
 
-# LangChain & AI/ML
-langgraph==0.2.63
-langchain-core>=0.3.37
-langchain-google-genai==2.0.10
-google-generativeai==0.8.3
+# LangChain & AI/ML (1.0.x stack - newer, fully aligned)
+langgraph>=1.0.0,<2.0.0
+langchain-core>=1.0.0,<2.0.0
+langchain-google-genai>=3.0.0,<4.0.0
+google-generativeai>=0.8.5,<0.9.0
 
 # AWS & Cloud Services
 boto3==1.35.95
@@ -16,6 +16,7 @@ botocore==1.35.95
 # Database
 snowflake-connector-python==3.12.3
 psycopg2-binary==2.9.10
+sqlmodel==0.0.27
 
 # PDF Generation
 weasyprint==63.1
@@ -31,12 +32,13 @@ requests==2.32.3
 
 # CORS Middleware (included with FastAPI but explicit for clarity)
 # Note: CORSMiddleware comes with FastAPI via starlette
-langchain-openai>=0.1.0
+langchain-openai>=1.0.0,<2.0.0
+langchain-anthropic>=1.0.0,<2.0.0
 openai==2.3.0
 tiktoken==0.12.0
 
 protobuf~=5.29.5
-langchain~=0.3.25
+langchain>=1.0.0,<2.0.0
 idna~=3.10
 httpcore~=1.0.7
 httpx~=0.28.1
@@ -108,9 +110,9 @@ greenlet~=3.2.2
 psutil~=7.0.0
 annotated-types~=0.7.0
 tenacity~=9.1.2
-langchain-community~=0.3.24
+langchain-community>=0.4.0,<1.0.0
 langsmith~=0.4.8
-langchain-text-splitters~=0.3.8
+langchain-text-splitters>=1.0.0,<2.0.0
 ormsgpack~=1.10.0
 anthropic~=0.59.0
 requests-toolbelt~=1.0.0

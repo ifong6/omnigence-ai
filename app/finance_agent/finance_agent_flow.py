@@ -48,9 +48,7 @@ def finance_agent_flow(request: RequestBody):
     print(f"[DEBUG] Result type: {type(result)}")
     print(f"[DEBUG] Result keys: {result.keys() if isinstance(result, dict) else 'N/A'}")
     if isinstance(result, dict):
-        print(f"[DEBUG] quotation_response: {result.get('quotation_response', 'NOT FOUND')}")
-        print(f"[DEBUG] next_handlers: {result.get('next_handlers', 'NOT FOUND')}")
-        print(f"[DEBUG] index: {result.get('index', 'NOT FOUND')}")
+        print(f"[DEBUG] handler_result: {result.get('handler_result', 'NOT FOUND')}")
 
     return result
 

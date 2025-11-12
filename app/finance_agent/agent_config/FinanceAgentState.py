@@ -10,8 +10,8 @@ class FinanceAgentState(BaseModel):
 
     # Planning/routing fields (ephemeral workflow state)
     intents: Optional[list[str]] = None
-    next_handlers: Optional[list[str]] = None
-    index: int = 0  # Current index for processing next_handlers
+    # next_handlers: Optional[list[str]] = None  # DISABLED: Only using single crud_react_agent now
+    # index: int = 0  # DISABLED: No longer needed for handler routing
     job_type: Optional[str] = None  # Job type: "inspection" or "design"
 
     # Control flags (workflow coordination)
