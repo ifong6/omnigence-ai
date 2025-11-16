@@ -270,7 +270,7 @@ def create_quotation_in_db(tool_input: Any) -> Dict[str, Any]:
                 currency=quotation_info.currency or 'MOP',
                 items=items,
                 date_issued=quotation_info.date,
-                is_revision=False  # Default to new sequence
+                revision_no="00"  # Default to no revision
             )
 
             # Commit transaction

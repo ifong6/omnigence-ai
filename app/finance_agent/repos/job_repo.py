@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List
 from sqlmodel import Session, select
 
 from app.finance_agent.repos.base_repo import OrmBaseRepository
-from app.finance_agent.models.job_models import DesignJob, InspectionJob, JobCreate, JobUpdate, JobRow
+from app.models.job_models import DesignJob, InspectionJob, JobCreate, JobUpdate, JobRow
 
 
 def _payload_to_dict(payload: JobCreate | JobUpdate) -> Dict[str, Any]:
@@ -49,7 +49,7 @@ class DesignJobRepo(OrmBaseRepository[DesignJob]):
     ) -> List[DesignJob]:
         stmt = select(DesignJob).where(DesignJob.company_id == company_id)
         stmt = stmt.order_by(
-            DesignJob.created_at.desc() if order_desc else DesignJob.created_at.asc()  # type: ignore
+            DesignJob.date_created.desc() if order_desc else DesignJob.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)
@@ -65,7 +65,7 @@ class DesignJobRepo(OrmBaseRepository[DesignJob]):
     ) -> List[DesignJob]:
         stmt = select(DesignJob)
         stmt = stmt.order_by(
-            DesignJob.created_at.desc() if order_desc else DesignJob.created_at.asc()  # type: ignore
+            DesignJob.date_created.desc() if order_desc else DesignJob.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)
@@ -107,9 +107,9 @@ class InspectionJobRepo(OrmBaseRepository[InspectionJob]):
     ) -> List[InspectionJob]:
         stmt = select(InspectionJob).where(InspectionJob.company_id == company_id)
         stmt = stmt.order_by(
-            InspectionJob.created_at.desc()  # type: ignore
+            InspectionJob.date_created.desc()  # type: ignore
             if order_desc
-            else InspectionJob.created_at.asc()  # type: ignore
+            else InspectionJob.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)
@@ -125,9 +125,9 @@ class InspectionJobRepo(OrmBaseRepository[InspectionJob]):
     ) -> List[InspectionJob]:
         stmt = select(InspectionJob)
         stmt = stmt.order_by(
-            InspectionJob.created_at.desc()  # type: ignore
+            InspectionJob.date_created.desc()  # type: ignore
             if order_desc
-            else InspectionJob.created_at.asc()  # type: ignore
+            else InspectionJob.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)

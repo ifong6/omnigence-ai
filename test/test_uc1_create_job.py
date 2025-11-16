@@ -7,7 +7,7 @@ from sqlmodel import Session
 from app.db.engine import engine
 from app.main_flow.main_flow import main_flow
 from app.main_flow.utils.Request.UserRequest import UserRequest
-from app.finance_agent.services.job_service import JobService
+from app.services.impl import JobServiceImpl
 from app.finance_agent.repos.base_repo import OrmBaseRepository
 from app.finance_agent.models.job_models import DesignJob, InspectionJob
 from app.finance_agent.models.flow_models import Flow
@@ -174,7 +174,7 @@ def display_all_jobs():
             print(json.dumps([j.model_dump() for j in design_jobs], indent=4, default=str))
         except Exception:
             # Fallback to service if repos aren't wired yet:
-            js = JobService(session)
+            js = JobServiceImpl(session)
             design_jobs = js.list_all("DESIGN", limit=50)  # ensure this method exists in your service
             print(json.dumps(design_jobs, indent=4, default=str))
 
@@ -187,7 +187,7 @@ def display_all_jobs():
             inspection_jobs = i_repo.find_many_by(job_type="INSPECTION", limit=50)
             print(json.dumps([j.model_dump() for j in inspection_jobs], indent=4, default=str))
         except Exception:
-            js = JobService(session)
+            js = JobServiceImpl(session)
             inspection_jobs = js.list_all("INSPECTION", limit=50)
             print(json.dumps(inspection_jobs, indent=4, default=str))
 

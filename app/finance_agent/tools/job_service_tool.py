@@ -2,7 +2,7 @@ from typing import Any, Dict
 import json
 from sqlmodel import Session
 from app.db.engine import engine
-from app.finance_agent.services.job_service import JobService 
+from app.services.impl import JobServiceImpl 
 
 def job_service_tool(operation: str, params: Dict[str, Any]) -> str:
     """
@@ -60,7 +60,7 @@ def job_service_tool(operation: str, params: Dict[str, Any]) -> str:
 
     try:
         with Session(engine) as session:
-            service = JobService(session)
+            service = JobServiceImpl(session)
 
             if operation == "create":
                 job = service.create_job(**params)

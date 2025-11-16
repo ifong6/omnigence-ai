@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlmodel import Session, select
 from sqlalchemy import func
 from app.finance_agent.repos.base_repo import OrmBaseRepository
-from app.finance_agent.models.quotation_models import Quotation, QuotationCreate, QuotationUpdate, QuotationRow
+from app.models.quotation_models import Quotation, QuotationCreate, QuotationUpdate, QuotationRow
 
 def _payload_to_dict(payload: QuotationCreate | QuotationUpdate) -> Dict[str, Any]:
     return payload.model_dump(exclude_none=True)
@@ -131,3 +131,69 @@ class QuotationRepo(OrmBaseRepository[Quotation]):
             count = row[1] or 0
             return {"total": total, "item_count": count}
         return {"total": Decimal("0"), "item_count": 0}
+
+    def get_by_job_no_pattern(self, job_no: str) -> List[Quotation]:
+        """
+        Get all quotations where quo_no starts with the given job_no.
+
+        Used for finding all quotations related to a specific job.
+
+        Args:
+            job_no: Job number pattern (e.g., "Q-JCP-25-01-1")
+
+        Returns:
+            List of quotations matching the pattern
+
+        Example:
+            >>> repo.get_by_job_no_pattern("Q-JCP-25-01-1")
+            # Returns: [Q-JCP-25-01-1-1, Q-JCP-25-01-1-2, ...]
+        """
+        stmt = (
+            select(Quotation)
+            .where(Quotation.quo_no.like(f"{job_no}%"))  # type: ignore
+            .order_by(Quotation.date_issued.desc())  # type: ignore
+        )
+        return list(self.session.exec(stmt))
+
+    def search_by_project_pattern(
+        self, pattern: str, limit: int = 10
+    ) -> List[Quotation]:
+        """
+        Search quotations by project name pattern (case-insensitive).
+
+        Args:
+            pattern: Search pattern for project name
+            limit: Maximum number of results (default: 10)
+
+        Returns:
+            List of quotations matching the pattern
+
+        Example:
+            >>> repo.search_by_project_pattern("空調", limit=5)
+        """
+        stmt = (
+            select(Quotation)
+            .where(Quotation.project_name.ilike(f"%{pattern}%"))  # type: ignore
+            .order_by(Quotation.date_issued.desc())  # type: ignore
+            .limit(limit)
+        )
+        return list(self.session.exec(stmt))
+
+    def get_by_quo_no_prefix(self, job_no: str) -> List[Quotation]:
+        """
+        Get all quotations where quo_no starts with job_no followed by hyphen.
+
+        Used for finding all revisions of a job's quotations.
+
+        Args:
+            job_no: Job number (e.g., "Q-JCP-25-01-1")
+
+        Returns:
+            List of quotations with quo_no starting with "{job_no}-"
+
+        Example:
+            >>> repo.get_by_quo_no_prefix("Q-JCP-25-01-1")
+            # Returns quotations with quo_no like "Q-JCP-25-01-1-1", "Q-JCP-25-01-1-2", etc.
+        """
+        stmt = select(Quotation).where(Quotation.quo_no.like(f"{job_no}-%"))  # type: ignore
+        return list(self.session.exec(stmt))

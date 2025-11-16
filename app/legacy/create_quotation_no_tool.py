@@ -22,7 +22,7 @@ from database.supabase.db_connection import execute_query
 # Business Logic Functions
 # ============================================================================
 
-def _parse_input(tool_input: Any) -> Tuple[str, bool]:
+def _parse_input(tool_input: Any) -> Tuple[str, str]:
     """
     Parse and validate tool input.
 
@@ -30,7 +30,7 @@ def _parse_input(tool_input: Any) -> Tuple[str, bool]:
         tool_input: Can be JSON string, dict, or plain string
 
     Returns:
-        Tuple of (job_no, is_revision)
+        Tuple of (job_no, revision_no)
 
     Raises:
         ValueError: If job_no is missing
@@ -38,25 +38,25 @@ def _parse_input(tool_input: Any) -> Tuple[str, bool]:
     # Handle dict input
     if isinstance(tool_input, dict):
         job_no = tool_input.get('job_no')
-        is_revision = tool_input.get('is_revision', False)
+        revision_no = tool_input.get('revision_no', "00")
     # Handle string input (try JSON first, then plain string)
     elif isinstance(tool_input, str):
         import json
         try:
             params = json.loads(tool_input)
             job_no = params.get('job_no')
-            is_revision = params.get('is_revision', False)
+            revision_no = params.get('revision_no', "00")
         except json.JSONDecodeError:
             # Plain string - treat as job_no
             job_no = tool_input
-            is_revision = False
+            revision_no = "00"
     else:
         raise ValueError(f"Unexpected input type: {type(tool_input)}")
 
     if not job_no:
         raise ValueError("job_no is required")
 
-    return job_no, is_revision
+    return job_no, revision_no
 
 
 def _generate_quotation_prefix(job_no: str) -> str:
@@ -147,7 +147,7 @@ def _parse_sequence_and_revision(
 
 
 def _calculate_next_sequence_and_revision(
-    is_revision: bool,
+    revision_no: str,
     max_seq: int,
     seq_revisions: Dict[int, int]
 ) -> Tuple[str, str]:
@@ -155,7 +155,7 @@ def _calculate_next_sequence_and_revision(
     Calculate the next sequence number and revision.
 
     Args:
-        is_revision: True if creating revision, False if new sequence
+        revision_no: Revision number (00=no revision, 01/02/etc=revision)
         max_seq: Maximum sequence number found
         seq_revisions: Dict mapping sequence numbers to their max revisions
 
@@ -164,14 +164,14 @@ def _calculate_next_sequence_and_revision(
 
     Examples:
         >>> # New sequence
-        >>> _calculate_next_sequence_and_revision(False, 2, {1: 1, 2: 0})
+        >>> _calculate_next_sequence_and_revision("00", 2, {1: 1, 2: 0})
         ("q3", "00")
 
         >>> # New revision of existing sequence
-        >>> _calculate_next_sequence_and_revision(True, 2, {1: 1, 2: 0})
+        >>> _calculate_next_sequence_and_revision("01", 2, {1: 1, 2: 0})
         ("q2", "01")
     """
-    if is_revision:
+    if revision_no != "00":
         # Create a new revision of the latest sequence
         seq_no = f"{QuotationPrefixes.SEQUENCE}{max_seq}"
         latest_revision = seq_revisions.get(max_seq, 0)
@@ -202,17 +202,17 @@ def create_quotation_no_tool(tool_input: Any) -> str:
 
     Args:
         tool_input: Can be either:
-            - JSON string: '{"job_no": "JCP-25-01-1", "is_revision": false}'
-            - Dictionary: {"job_no": "JCP-25-01-1", "is_revision": true}
-            - Plain string: "JCP-25-01-1" (is_revision defaults to False)
+            - JSON string: '{"job_no": "JCP-25-01-1", "revision_no": "00"}'
+            - Dictionary: {"job_no": "JCP-25-01-1", "revision_no": "01"}
+            - Plain string: "JCP-25-01-1" (revision_no defaults to "00")
 
     Required Parameter:
         - job_no: Job number (e.g., "JCP-25-01-1")
 
     Optional Parameter:
-        - is_revision: Boolean (default False)
-            - False: Create new sequence (increment q), reset revision to R00
-            - True: Keep same sequence (same q), increment revision (R01, R02, ...)
+        - revision_no: String (default "00")
+            - "00": Create new sequence (increment q), reset revision to R00
+            - "01"/"02"/etc: Keep same sequence (same q), increment revision (R01, R02, ...)
 
     Returns:
         str: Complete quotation number with revision (e.g., "Q-JCP-25-01-q1-R00")
@@ -224,15 +224,15 @@ def create_quotation_no_tool(tool_input: Any) -> str:
         "Q-JCP-25-01-q1-R00"
 
         >>> # Second quotation (new sequence)
-        >>> create_quotation_no_tool({"job_no": "JCP-25-01-1", "is_revision": False})
+        >>> create_quotation_no_tool({"job_no": "JCP-25-01-1", "revision_no": "00"})
         "Q-JCP-25-01-q2-R00"
 
         >>> # Revision of first quotation
-        >>> create_quotation_no_tool({"job_no": "JCP-25-01-1", "is_revision": True})
+        >>> create_quotation_no_tool({"job_no": "JCP-25-01-1", "revision_no": "01"})
         "Q-JCP-25-01-q1-R01"
 
     Workflow:
-        1. Parse input to get job_no and is_revision flag
+        1. Parse input to get job_no and revision_no
         2. Generate quotation prefix: Q-{job_no_base}
            (e.g., "JCP-25-01-1" → "Q-JCP-25-01")
         3. Query database for existing quotations with this prefix
@@ -240,8 +240,8 @@ def create_quotation_no_tool(tool_input: Any) -> str:
            - Maximum sequence number
            - Maximum revision for each sequence
         5. Calculate next sequence and revision:
-           - If is_revision=True: Same sequence, increment revision
-           - If is_revision=False: New sequence, reset revision to "00"
+           - If revision_no!="00": Same sequence, increment revision
+           - If revision_no="00": New sequence, reset revision to "00"
         6. Return complete quotation number with revision suffix
 
     Full Quotation Number Format:
@@ -255,8 +255,8 @@ def create_quotation_no_tool(tool_input: Any) -> str:
 
     try:
         # Parse and validate input
-        job_no, is_revision = _parse_input(tool_input)
-        print(f"[DEBUG][create_quotation_no_tool] Parsed - job_no: {job_no}, is_revision: {is_revision}")
+        job_no, revision_no = _parse_input(tool_input)
+        print(f"[DEBUG][create_quotation_no_tool] Parsed - job_no: {job_no}, revision_no: {revision_no}")
 
         # Generate quotation prefix from job number
         quotation_prefix = _generate_quotation_prefix(job_no)
@@ -279,7 +279,7 @@ def create_quotation_no_tool(tool_input: Any) -> str:
 
             # Calculate next sequence and revision
             seq_no, revision_str = _calculate_next_sequence_and_revision(
-                is_revision, max_seq, seq_revisions
+                revision_no, max_seq, seq_revisions
             )
             print(f"[DEBUG][create_quotation_no_tool] Calculated - seq: {seq_no}, rev: {revision_str}")
 

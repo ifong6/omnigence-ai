@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 from sqlmodel import Session, select
-from app.finance_agent.models.flow_models import Flow
+from app.models.flow_models import Flow
 from app.finance_agent.repos.base_repo import OrmBaseRepository
 
 

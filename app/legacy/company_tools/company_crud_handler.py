@@ -1,4 +1,4 @@
-from app.finance_agent.agent_config.FinanceAgentState import FinanceAgentState
+from app.schemas.finance_agent_state import FinanceAgentState
 from app.finance_agent.company.company_crud_tools import company_crud_tools
 from app.finance_agent.utils.invoke_react_agent import invoke_react_agent
 

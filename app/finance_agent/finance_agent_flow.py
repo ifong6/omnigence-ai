@@ -1,7 +1,7 @@
-from app.finance_agent.agent_config.FinanceAgentState import FinanceAgentState
+from app.schemas.finance_agent_state import FinanceAgentState
 from app.finance_agent.agent_config.agent_registry import AGENT_NODES, STATIC_EDGES, CONDITIONAL_EDGES
 from langgraph.graph import StateGraph
-from app.utils.Request import RequestBody
+from app.dto.agent_dto import AgentFlowRequestDTO
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
@@ -28,7 +28,7 @@ for edge in CONDITIONAL_EDGES:
 workflow_builder.set_entry_point("intent_analyzer")
 graph = workflow_builder.compile(checkpointer=checkpointer)
 
-def finance_agent_flow(request: RequestBody):
+def finance_agent_flow(request: AgentFlowRequestDTO):
     initial_state = {
         "user_input": request.user_input,
         "agent_type": request.agent_type,

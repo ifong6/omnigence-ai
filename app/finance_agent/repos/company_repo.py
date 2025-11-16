@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from sqlalchemy import func
-from app.finance_agent.models.company_models import Company
+from app.models.company_models import Company
 from app.finance_agent.repos.base_repo import OrmBaseRepository
 
 
@@ -39,7 +39,7 @@ class CompanyRepo(OrmBaseRepository[Company]):
     ) -> List[Company]:
         """
         使用 ILIKE 以 term 模糊搜尋 name/alias。
-        預設以 created_at DESC 排序（若你的模型無該欄位，可換成 id）。
+        預設以 id DESC 排序（Company 模型無 created_at 欄位）。
         """
         ilike = f"%{term}%"
         stmt = (
@@ -47,9 +47,9 @@ class CompanyRepo(OrmBaseRepository[Company]):
             .where((Company.name.ilike(ilike)) | (Company.alias.ilike(ilike)))  # type: ignore
         )
         if order_desc:
-            stmt = stmt.order_by(Company.created_at.desc())  # type: ignore
+            stmt = stmt.order_by(Company.id.desc())  # type: ignore
         else:
-            stmt = stmt.order_by(Company.created_at.asc())  # type: ignore
+            stmt = stmt.order_by(Company.id.asc())  # type: ignore
 
         if offset:
             stmt = stmt.offset(offset)
@@ -70,9 +70,9 @@ class CompanyRepo(OrmBaseRepository[Company]):
         """
         stmt = select(Company)
         if order_desc:
-            stmt = stmt.order_by(Company.created_at.desc())  # type: ignore
+            stmt = stmt.order_by(Company.id.desc())  # type: ignore
         else:
-            stmt = stmt.order_by(Company.created_at.asc())  # type: ignore
+            stmt = stmt.order_by(Company.id.asc())  # type: ignore
 
         if offset:
             stmt = stmt.offset(offset)

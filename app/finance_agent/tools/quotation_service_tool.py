@@ -2,7 +2,7 @@ from typing import Any, Dict
 import json
 from sqlmodel import Session
 from app.db.engine import engine
-from app.finance_agent.services.quotation_service import QuotationService
+from app.services.impl import QuotationServiceImpl
         
 def quotation_service_tool(operation: str, params: Dict[str, Any]) -> str:
     """
@@ -19,12 +19,12 @@ def quotation_service_tool(operation: str, params: Dict[str, Any]) -> str:
         1. create: Create complete quotation with header and items.
            params: {job_no: str, company_id: int, project_name: str,
                    items: [{item_desc: str, quantity: int, unit_price: Decimal, unit?: str}, ...],
-                   currency?: str, date_issued?: date, is_revision?: bool,
+                   currency?: str, date_issued?: date, revision_no?: str,
                    valid_until?: date, notes?: str}
            returns: {quotation: {...}, items: [{id, item_desc, quantity, unit_price, amount}, ...]}
 
         2. generate_number: Generate quotation number only.
-           params: {job_no: str, is_revision?: bool}
+           params: {job_no: str, revision_no?: str}
            returns: "Q-JICP-25-02-q1-R00"
 
         3. get_by_quo_no: Get quotation header by quotation number.
@@ -73,7 +73,7 @@ def quotation_service_tool(operation: str, params: Dict[str, Any]) -> str:
 
     try:
         with Session(engine) as session:
-            service = QuotationService(session)
+            service = QuotationServiceImpl(session)
 
             if operation == "create":
                 result = service.create_quotation(**params)
@@ -112,7 +112,7 @@ def quotation_service_tool(operation: str, params: Dict[str, Any]) -> str:
             elif operation == "generate_number":
                 quo_no = service.generate_quotation_number(
                     params["job_no"],
-                    params.get("is_revision", False)
+                    params.get("revision_no", "00")
                 )
                 return json.dumps(quo_no)
 
