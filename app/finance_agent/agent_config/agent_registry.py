@@ -4,6 +4,7 @@ from app.finance_agent.planner import planner_node
 from app.finance_agent.company.company_crud_handler import company_crud_handler_node
 from app.finance_agent.job_list.job_crud_handler import job_crud_handler_node
 from app.finance_agent.quotation.quotation_crud_handler import quotation_crud_handler_node
+from app.finance_agent.invoice.invoice_crud_handler import invoice_crud_handler_node
 from app.finance_agent.agent_config.FinanceAgentState import FinanceAgentState
 
 AGENT_NODES = {
@@ -12,6 +13,7 @@ AGENT_NODES = {
     "company_crud_handler": company_crud_handler_node,
     "job_crud_handler": job_crud_handler_node,
     "quotation_crud_handler": quotation_crud_handler_node,
+    "invoice_crud_handler": invoice_crud_handler_node,
 }
 
 STATIC_EDGES = [
@@ -47,6 +49,7 @@ CONDITIONAL_EDGES = [
         "path_map": {
             "job_crud_handler": "job_crud_handler",
             "quotation_crud_handler": "quotation_crud_handler",
+            "invoice_crud_handler": "invoice_crud_handler",
             "company_crud_handler": "company_crud_handler",
             "end": END
         }
@@ -57,6 +60,7 @@ CONDITIONAL_EDGES = [
         "path_map": {
             "job_crud_handler": "job_crud_handler",
             "quotation_crud_handler": "quotation_crud_handler",
+            "invoice_crud_handler": "invoice_crud_handler",
             "company_crud_handler": "company_crud_handler",
             "end": END
         }
@@ -67,6 +71,18 @@ CONDITIONAL_EDGES = [
         "path_map": {
             "job_crud_handler": "job_crud_handler",
             "quotation_crud_handler": "quotation_crud_handler",
+            "invoice_crud_handler": "invoice_crud_handler",
+            "company_crud_handler": "company_crud_handler",
+            "end": END
+        }
+    },
+    {
+        "source": "invoice_crud_handler",
+        "path": route_to_next_handler,
+        "path_map": {
+            "job_crud_handler": "job_crud_handler",
+            "quotation_crud_handler": "quotation_crud_handler",
+            "invoice_crud_handler": "invoice_crud_handler",
             "company_crud_handler": "company_crud_handler",
             "end": END
         }
@@ -77,6 +93,7 @@ CONDITIONAL_EDGES = [
         "path_map": {
             "job_crud_handler": "job_crud_handler",
             "quotation_crud_handler": "quotation_crud_handler",
+            "invoice_crud_handler": "invoice_crud_handler",
             "company_crud_handler": "company_crud_handler",
             "end": END
         }

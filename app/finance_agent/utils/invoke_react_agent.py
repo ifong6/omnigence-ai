@@ -1,7 +1,7 @@
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools.render import render_text_description_and_args
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.agents.output_parsers.react_single_input import ReActSingleInputOutputParser
+from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain_classic.agents.output_parsers.react_single_input import ReActSingleInputOutputParser
 from app.llm.invoke_openai_llm import get_openai_llm
 from app.prompt.job_crud_prompt import REACT_PROMPT
 from typing import List, Any

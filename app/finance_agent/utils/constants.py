@@ -17,6 +17,7 @@ class DatabaseSchema:
     FINANCE_SCHEMA = "Finance"
     JOB_TABLE = f'"{FINANCE_SCHEMA}".job'
     QUOTATION_TABLE = f'"{FINANCE_SCHEMA}".quotation'
+    INVOICE_TABLE = f'"{FINANCE_SCHEMA}".invoice'
     COMPANY_TABLE = f'"{FINANCE_SCHEMA}".company'
 
 
@@ -75,6 +76,14 @@ class QuotationStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+class InvoiceStatus(str, Enum):
+    """Valid invoice statuses."""
+    PENDING = "pending"
+    PAID = "paid"
+    OVERDUE = "overdue"
+    CANCELLED = "cancelled"
+
+
 # ============================================================================
 # Quotation Constants
 # ============================================================================
@@ -92,6 +101,19 @@ class QuotationPrefixes:
     QUOTATION = "Q-"
     SEQUENCE = "q"
     REVISION = "R"
+
+
+class InvoiceDefaults:
+    """Default values for invoices."""
+    UNIT = "Lot"
+    QUANTITY = 1
+    CURRENCY = "MOP"
+    STATUS = "pending"
+
+
+class InvoicePrefixes:
+    """Prefixes for invoice numbers."""
+    INVOICE = "INV-"
 
 
 # ============================================================================
@@ -168,6 +190,26 @@ class CompanyFields:
     NAME = "name"
     ADDRESS = "address"
     PHONE = "phone"
+
+
+class InvoiceFields:
+    """Field names for invoice table."""
+    ID = "id"
+    INV_NO = "inv_no"
+    DATE_ISSUED = "date_issued"
+    DUE_DATE = "due_date"
+    CLIENT_ID = "client_id"
+    PROJECT_NAME = "project_name"
+    JOB_NO = "job_no"
+    QUOTATION_NO = "quotation_no"
+    INVOICE_ITEM_DESCRIPTION = "invoice_item_description"
+    SUB_AMOUNT = "sub_amount"
+    TOTAL_AMOUNT = "total_amount"
+    CURRENCY = "currency"
+    STATUS = "status"
+    AMOUNT = "amount"
+    UNIT = "unit"
+    NOTES = "notes"
 
 
 # ============================================================================

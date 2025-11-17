@@ -13,11 +13,12 @@ PLANNING_PROMPT_TEMPLATE = """
     ## Current Finance Agent Capabilities:
         - job_crud_handler: Handles job CRUD operations (create job, update job, get job info).
         - quotation_crud_handler: Handles quotation CRUD operations (create quotation, update quotation, get quotation info).
+        - invoice_crud_handler: Handles invoice CRUD operations (create invoice, update invoice, get invoice info).
 
     ## Intent to Handler Mapping:
         - "create job" intent -> job_crud_handler
         - "issue quotation" intent -> quotation_crud_handler
-        - "issue invoice" intent -> quotation_crud_handler
+        - "issue invoice" intent -> invoice_crud_handler
 
     ---
 

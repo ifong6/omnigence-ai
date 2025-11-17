@@ -19,6 +19,7 @@ class FinanceAgentState(BaseModel):
 
     # Response fields (final output only)
     quotation_response: Optional[dict] = None  # Formatted response for frontend
+    invoice_response: Optional[dict] = None  # Formatted invoice response for frontend
 
     # Messages (LangGraph communication)
     messages: Optional[Annotated[list[AnyMessage], add_messages]] = []
