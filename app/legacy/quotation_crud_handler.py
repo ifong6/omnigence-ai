@@ -1,4 +1,4 @@
-from app.schemas.finance_agent_state import FinanceAgentState
+from app.FinanceFlowState import FinanceAgentState
 from app.legacy.quotation_tools.tools.crud_tools.create_quotation_no_tool import create_quotation_no_tool    
 from app.legacy.quotation_tools.tools.crud_tools.create_quotation_in_db import create_quotation_in_db
 from app.legacy.quotation_tools.tools.crud_tools.update_quotation_tool import update_quotation_tool

@@ -1,14 +1,8 @@
-from app.schemas.main_flow_state import MainFlowState
+from app.core.agent_config.MainFlowState import MainFlowState
 from langchain_core.messages import AIMessage, HumanMessage
 import requests
 from langgraph.types import interrupt
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from langgraph.graph import StateGraph
-from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.runnables import RunnableConfig
-import uuid
-from typing import cast
-from app.agent_config.agent_registry import AGENT_NODES, STATIC_EDGES
 
 
 def workflow_router_node(state: MainFlowState):

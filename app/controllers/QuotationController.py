@@ -1,19 +1,12 @@
-"""
-Quotation Controller for quotation management API endpoints.
-
-Handles HTTP requests for quotation creation, retrieval, updates, and queries.
-"""
-
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
-from app.controllers.base_controller import BaseController
+from app.controllers.BaseController import BaseController
 from app.services.impl import QuotationServiceImpl
 from app.dto.quotation_dto import (
     CreateQuotationDTO,
     UpdateQuotationDTO,
     QuotationDTO,
-    QuotationWithItemsDTO,
     QuotationSearchResponseDTO,
     QuotationCreateResponseDTO
 )
@@ -216,7 +209,7 @@ class QuotationController(BaseController):
         BaseController.log_request(f"/api/quotations/by-job/{job_no}", {"job_no": job_no})
 
         service = QuotationServiceImpl(session)
-        quotations = service.get_quotations_by_job_no(job_no)
+        quotations = service.get_by_job_no(job_no)
 
         # Convert Models to DTOs
         quotations_dto = [QuotationDTO.model_validate(q) for q in quotations]
@@ -235,35 +228,17 @@ class QuotationController(BaseController):
     def get_quotations_by_client(
         client_id: int,
         limit: Optional[int] = Query(10, description="Maximum number of results"),
-        offset: int = Query(0, description="Number of results to skip"),
         session: Session = Depends(get_session)
-    ):
-        """
-        Get all quotations for a specific client.
-
-        Path Parameters:
-            - client_id: int - Client/Company ID
-
-        Query Parameters:
-            - limit: int (optional) - Maximum results (default: 10)
-            - offset: int (optional) - Results to skip (default: 0)
-
-        Returns:
-            List of quotations for the client
-
-        Example:
-            GET /api/quotations/by-client/123?limit=20
-        """
+    ): 
         BaseController.log_request(
             f"/api/quotations/by-client/{client_id}",
-            {"client_id": client_id, "limit": limit, "offset": offset}
+            {"client_id": client_id, "limit": limit}
         )
 
         service = QuotationServiceImpl(session)
-        quotations = service.get_quotations_by_client_id(
+        quotations = service.get_quotations_by_client(
             client_id=client_id,
             limit=limit,
-            offset=offset
         )
 
         # Convert Models to DTOs
@@ -283,31 +258,7 @@ class QuotationController(BaseController):
         quotation_id: int,
         request: UpdateQuotationDTO,
         session: Session = Depends(get_session)
-    ):
-        """
-        Update quotation details.
-
-        Path Parameters:
-            - quotation_id: int - Quotation ID
-
-        Request Body:
-            - status: str (optional) - New status
-            - notes: str (optional) - Updated notes
-            - valid_until: date (optional) - New validity date
-
-        Returns:
-            Updated quotation details
-
-        Raises:
-            404 if quotation not found
-
-        Example:
-            PATCH /api/quotations/123
-            {
-                "status": "SENT",
-                "notes": "Sent to client on 2025-01-15"
-            }
-        """
+    ): 
         BaseController.log_request(f"/api/quotations/{quotation_id}", request.model_dump())
 
         service = QuotationServiceImpl(session)
@@ -322,7 +273,7 @@ class QuotationController(BaseController):
             )
 
         # Update quotation
-        updated = service.update_quotation(quotation_id=quotation_id, payload=request)
+        updated = service.update_quotation(quotation_ids=[quotation_id], **request.model_dump())
 
         if not updated:
             raise BaseController.error_response(

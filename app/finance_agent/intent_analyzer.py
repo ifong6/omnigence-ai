@@ -1,4 +1,4 @@
-from app.schemas.finance_agent_state import FinanceAgentState
+from app.FinanceFlowState import FinanceAgentState
 from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 from typing import List, Optional

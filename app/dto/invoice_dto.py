@@ -1,22 +1,8 @@
-"""
-Invoice DTOs (Data Transfer Objects): Pydantic models for invoice service responses.
-
-DTOs provide:
-1. Type safety and validation
-2. Clear API contracts
-3. Separation between database models and API responses
-4. Consistent serialization format
-5. Documentation via field descriptions
-
-Note: Invoice models follow similar structure to quotations but represent
-finalized billing documents with payment tracking.
-"""
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional
 from decimal import Decimal
 from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
-
 
 # ============================================================================
 # ENUMS
@@ -136,7 +122,7 @@ class InvoiceWithItemsDTO(InvoiceDTO):
 
     Extends InvoiceDTO with the full list of items.
     """
-    items: List[InvoiceItemDTO] = Field(default_factory=list, description="List of invoice items")
+    items: list[InvoiceItemDTO] = Field(default_factory=list, description="List of invoice items")
 
     @property
     def item_count(self) -> int:
@@ -172,7 +158,7 @@ class InvoiceWithPaymentsDTO(InvoiceWithItemsDTO):
 
     Complete invoice view including all line items and payment records.
     """
-    payments: List[PaymentRecordDTO] = Field(default_factory=list, description="Payment history")
+    payments: list[PaymentRecordDTO] = Field(default_factory=list, description="Payment history")
 
     @property
     def payment_count(self) -> int:
@@ -186,7 +172,7 @@ class InvoiceListResponseDTO(BaseModel):
 
     This wraps a list of invoices with metadata.
     """
-    invoices: List[InvoiceWithClientDTO] = Field(..., description="List of invoices")
+    invoices: list[InvoiceWithClientDTO] = Field(..., description="List of invoices")
     total_count: int = Field(..., description="Total number of invoices")
     limit: Optional[int] = Field(None, description="Applied limit")
 
@@ -218,7 +204,7 @@ class CreateInvoiceDTO(BaseModel):
     company_id: int = Field(..., description="Client/Company ID", gt=0)
     project_name: str = Field(..., description="Project name", min_length=1, max_length=500)
     currency: str = Field(default="MOP", description="Currency code", min_length=3, max_length=3)
-    items: List[CreateInvoiceItemDTO] = Field(..., description="List of invoice items", min_items=1)
+    items: list[CreateInvoiceItemDTO] = Field(..., description="List of invoice items", min_length=1)
     date_issued: Optional[date] = Field(None, description="Issue date (defaults to today)")
     due_date: date = Field(..., description="Payment due date")
     notes: Optional[str] = Field(None, description="Invoice notes", max_length=1000)
@@ -284,7 +270,7 @@ class InvoiceUpdatedResponseDTO(BaseModel):
     """
     invoice: InvoiceDTO = Field(..., description="Updated invoice details")
     message: str = Field(default="Invoice updated successfully", description="Success message")
-    fields_updated: List[str] = Field(default_factory=list, description="List of updated fields")
+    fields_updated: list[str] = Field(default_factory=list, description="List of updated fields")
 
 
 class PaymentRecordedResponseDTO(BaseModel):

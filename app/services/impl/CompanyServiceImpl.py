@@ -1,20 +1,29 @@
-from typing import Optional
-from sqlmodel import Session
+from typing import Optional, List
+
+from sqlalchemy import or_
+from sqlmodel import Session, select
+
 from app.models.company_models import Company
-from app.dao import CompanyDAO
 from app.services import CompanyService
 from app.utils import normalize_string
+
 
 class CompanyServiceImpl(CompanyService):
     def __init__(self, session: Session):
         """
-        Initialize service with database session and DAO.
+        Initialize service with database session.
 
         Args:
             session: Active SQLModel session for database operations
         """
         super().__init__(session)
-        self.dao = CompanyDAO(session)
+        self.session = session
+        self.model = Company  # ORM table/model class
+
+    # =========================================================================
+    # BASIC CRUD
+    # =========================================================================
+
     def get_or_create(
         self,
         *,
@@ -44,13 +53,22 @@ class CompanyServiceImpl(CompanyService):
             ...     )
             ...     session.commit()
         """
-        # Delegate to DAO
-        company, created = self.dao.get_or_create(
+        name = name.strip()
+
+        # Try to find existing
+        stmt = select(self.model).where(self.model.name == name)
+        existing = self.session.exec(stmt).first()
+        if existing:
+            return existing
+
+        # Create new
+        company = self.model(
             name=name,
             address=address,
             phone=phone,
-            alias=alias
+            alias=alias,
         )
+        self.session.add(company)
         self.session.flush()
         return company
 
@@ -64,7 +82,8 @@ class CompanyServiceImpl(CompanyService):
         Returns:
             Company if found, None otherwise
         """
-        return self.dao.get_by_name(name)
+        stmt = select(self.model).where(self.model.name == name)
+        return self.session.exec(stmt).first()
 
     def get_by_id(self, company_id: int) -> Optional[Company]:
         """
@@ -76,7 +95,7 @@ class CompanyServiceImpl(CompanyService):
         Returns:
             Company if found, None otherwise
         """
-        return self.dao.get(company_id)
+        return self.session.get(self.model, company_id)
 
     def create(
         self,
@@ -101,12 +120,13 @@ class CompanyServiceImpl(CompanyService):
         Note:
             Remember to call session.commit() after creation
         """
-        company = self.dao.create(
+        company = self.model(
             name=name,
             address=address,
             phone=phone,
-            alias=alias
+            alias=alias,
         )
+        self.session.add(company)
         self.session.flush()
         return company
 
@@ -135,27 +155,24 @@ class CompanyServiceImpl(CompanyService):
         Note:
             Remember to call session.commit() after update
         """
-        # Build update kwargs with only provided fields
-        update_kwargs = {}
+        company = self.session.get(self.model, company_id)
+        if not company:
+            return None
+
         if name is not None:
-            update_kwargs['name'] = name
+            company.name = name
         if address is not None:
-            update_kwargs['address'] = address
+            company.address = address
         if phone is not None:
-            update_kwargs['phone'] = phone
+            company.phone = phone
         if alias is not None:
-            update_kwargs['alias'] = alias
+            company.alias = alias
 
-        if not update_kwargs:
-            # No fields to update, just return existing
-            return self.dao.get(company_id)
-
-        company = self.dao.update(company_id, **update_kwargs)
-        if company:
-            self.session.flush()
+        self.session.add(company)
+        self.session.flush()
         return company
 
-    def search_by_name(self, search_term: str, limit: int = 10) -> list[Company]:
+    def search_by_name(self, search_term: str, limit: int = 10) -> List[Company]:
         """
         Search companies by name or alias.
 
@@ -166,13 +183,25 @@ class CompanyServiceImpl(CompanyService):
         Returns:
             List of matching companies
         """
-        return self.dao.search_by_name_or_alias(
-            term=search_term,
-            limit=limit,
-            order_desc=True
-        )
+        search_term = search_term.strip()
+        if not search_term:
+            return []
 
-    def list_all(self, limit: Optional[int] = None) -> list[Company]:
+        pattern = f"%{search_term}%"
+        stmt = (
+            select(self.model)
+            .where(
+                or_(
+                    self.model.name.ilike(pattern),  # type: ignore
+                    self.model.alias.ilike(pattern),  # type: ignore
+                )
+            )
+            .order_by(self.model.id.desc())  # type: ignore
+            .limit(limit)
+        )
+        return list(self.session.exec(stmt).all())
+
+    def list_all(self, limit: Optional[int] = None) -> List[Company]:
         """
         Get all companies.
 
@@ -182,7 +211,10 @@ class CompanyServiceImpl(CompanyService):
         Returns:
             List of all companies
         """
-        return self.dao.get_all(limit=limit, order_desc=True)
+        stmt = select(self.model).order_by(self.model.id.desc())  # type: ignore
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        return list(self.session.exec(stmt).all())
 
     # ========================================================================
     # ENHANCED Operations (From tools)
@@ -204,22 +236,6 @@ class CompanyServiceImpl(CompanyService):
         2. Auto-fills missing address/phone via Google CSE (if provided)
         3. Updates existing company if fields are missing
         4. Creates new record if not found
-
-        Args:
-            name: Company name (required)
-            address: Company address (optional, will auto-fetch if missing)
-            phone: Company phone (optional, will auto-fetch if missing)
-            google_search_fn: Optional function for Google search enrichment
-
-        Returns:
-            dict with id, name, address, phone, status ("created" or "existing")
-
-        Example:
-            >>> from app.finance_agent.utils.Google_CSE import search_company_contact
-            >>> company = service.create_with_contact_enrichment(
-            ...     name="澳門科技大學",
-            ...     google_search_fn=search_company_contact
-            ... )
         """
         if not name or not name.strip():
             raise ValueError("company_name is required and cannot be empty")
@@ -249,7 +265,7 @@ class CompanyServiceImpl(CompanyService):
                 updated = self.update(
                     company_id=existing.id,  # type: ignore
                     address=final_addr,
-                    phone=final_phone
+                    phone=final_phone,
                 )
                 self.session.flush()
                 return {
@@ -257,7 +273,7 @@ class CompanyServiceImpl(CompanyService):
                     "name": updated.name,  # type: ignore
                     "address": updated.address,  # type: ignore
                     "phone": updated.phone,  # type: ignore
-                    "status": "existing"
+                    "status": "existing",
                 }
             else:
                 return {
@@ -265,14 +281,14 @@ class CompanyServiceImpl(CompanyService):
                     "name": existing.name,
                     "address": existing.address,
                     "phone": existing.phone,
-                    "status": "existing"
+                    "status": "existing",
                 }
 
         # Create new company
         company = self.create(
             name=name,
             address=address,
-            phone=phone
+            phone=phone,
         )
         self.session.flush()
 
@@ -281,30 +297,16 @@ class CompanyServiceImpl(CompanyService):
             "name": company.name,
             "address": company.address,
             "phone": company.phone,
-            "status": "created"
+            "status": "created",
         }
 
     def generate_alias_with_llm(
         self,
         company_id: int,
-        llm_fn
+        llm_fn,
     ) -> dict:
         """
         Generate and assign an intelligent alias using LLM.
-
-        Args:
-            company_id: Company ID
-            llm_fn: Function to invoke LLM (takes prompt and config)
-
-        Returns:
-            dict with id, name, alias, status, message
-
-        Example:
-            >>> from app.llm.invoke_claude_llm import invoke_claude_llm
-            >>> result = service.generate_alias_with_llm(
-            ...     company_id=1,
-            ...     llm_fn=invoke_claude_llm
-            ... )
         """
         from pydantic import BaseModel
 
@@ -339,7 +341,7 @@ class CompanyServiceImpl(CompanyService):
         if not company:
             return {
                 "error": "Company not found",
-                "status": "not_found"
+                "status": "not_found",
             }
 
         current_alias = company.alias
@@ -355,14 +357,14 @@ class CompanyServiceImpl(CompanyService):
         # Update company
         updated = self.update(
             company_id=company.id,  # type: ignore
-            alias=generated_alias
+            alias=generated_alias,
         )
         self.session.flush()
 
         if not updated:
             return {
                 "error": "Failed to update company with generated alias",
-                "status": "error"
+                "status": "error",
             }
 
         return {
@@ -372,10 +374,11 @@ class CompanyServiceImpl(CompanyService):
             "address": updated.address,
             "phone": updated.phone,
             "status": "alias_created" if not current_alias else "alias_updated",
-            "message": f"Successfully generated alias '{generated_alias}' for '{updated.name}'"
+            "message": f"Successfully generated alias '{generated_alias}' for '{updated.name}'",
         }
+
     # ============================================================================
-    # UTILITY FUNCTIONS: Module-level Helper Functions
+    # UTILITY FUNCTIONS
     # ============================================================================
 
     def _fetch_missing_contact_info(
@@ -383,7 +386,7 @@ class CompanyServiceImpl(CompanyService):
         company_name: str,
         address: Optional[str],
         phone: Optional[str],
-        google_search_fn
+        google_search_fn,
     ) -> tuple[Optional[str], Optional[str]]:
         """Best-effort enrichment via Google CSE; never blocks DB ops."""
         if address and phone:

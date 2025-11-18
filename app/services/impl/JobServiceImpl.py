@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, List, Dict, Any
+from typing import Optional, Sequence, Dict, Any
 from datetime import datetime, date
 from sqlmodel import Session, select
 from app.models.job_models import DesignJob, InspectionJob, JobCreate, JobUpdate
@@ -6,19 +6,23 @@ from app.services import JobService
 
 
 def _payload_to_dict(payload: JobCreate | JobUpdate) -> Dict[str, Any]:
-    """Convert Pydantic payload to dictionary, excluding None values."""
+    """Convert Pydantic/SQLModel payload to dictionary, excluding None values."""
     return payload.model_dump(exclude_none=True)
 
 
 class JobServiceImpl(JobService):
     """
-    Job service implementation using SQLModel directly.
+    Job service implementation using SQLModel models directly.
 
     No DAO layer - direct Session operations for CRUD.
     """
 
     def __init__(self, session: Session):
         super().__init__(session)
+        self.session = session
+        # Model references for clarity and consistency
+        self.design_model = DesignJob
+        self.inspection_model = InspectionJob
 
     # ========================================================================
     # CORE CRUD OPERATIONS (with job_type)
@@ -32,7 +36,7 @@ class JobServiceImpl(JobService):
         job_type: str,
         index: int = 1,
         status: str = "NEW",
-        quotation_status: str = "NOT_CREATED"
+        quotation_status: str = "NOT_CREATED",
     ) -> DesignJob | InspectionJob:
         """Create a new job (DESIGN or INSPECTION)."""
         if job_type not in ("DESIGN", "INSPECTION"):
@@ -47,16 +51,15 @@ class JobServiceImpl(JobService):
             title=title,
             job_no=job_no,
             status=status,
-            quotation_status=quotation_status
+            quotation_status=quotation_status,
         )
 
-        # Create job directly using SQLModel
         data = _payload_to_dict(payload)
 
         if job_type == "DESIGN":
-            job = DesignJob(**data)
+            job = self.design_model(**data)
         else:  # INSPECTION
-            job = InspectionJob(**data)
+            job = self.inspection_model(**data)
 
         self.session.add(job)
         self.session.flush()
@@ -71,50 +74,78 @@ class JobServiceImpl(JobService):
         title: Optional[str] = None,
         status: Optional[str] = None,
         quotation_status: Optional[str] = None,
-        quotation_issued_at: Optional[datetime] = None
+        quotation_issued_at: Optional[datetime] = None,
     ) -> Optional[DesignJob | InspectionJob]:
         """Update job by ID and type."""
         if job_type not in ("DESIGN", "INSPECTION"):
             raise ValueError(f"Invalid job_type: {job_type}")
 
-        # Build update payload
         payload = JobUpdate(
             title=title,
             status=status,
             quotation_status=quotation_status,
-            quotation_issued_at=quotation_issued_at
+            quotation_issued_at=quotation_issued_at,
         )
 
-        # Get and update the job
         if job_type == "DESIGN":
             return self._update_design_job(job_id, payload)
         else:  # INSPECTION
             return self._update_inspection_job(job_id, payload)
 
+    # ========================================================================
+    # INTERFACE METHODS (matching JobService)
+    # ========================================================================
+
+    def list_all_with_company(
+        self,
+        job_type: str,
+        limit: Optional[int] = None,
+        order_by: str | None = None,
+    ) -> list[dict]:
+        """
+        Get all jobs of a specific type with basic job+company info dict.
+
+        order_by:
+          - None or "date_created_desc" (default): newest first
+          - "date_created_asc": oldest first
+        """
+        jobs = self.list_all(job_type, limit=limit, order_by=order_by)
+        return [
+            {
+                "id": job.id,
+                "job_no": job.job_no,
+                "title": job.title,
+                "status": job.status,
+                "quotation_status": job.quotation_status,
+                "company_id": job.company_id,
+            }
+            for job in jobs
+        ]
+
     def get_by_id(
         self,
         job_id: int,
-        job_type: str
+        job_type: str,
     ) -> Optional[DesignJob | InspectionJob]:
         """Get job by ID and type."""
         if job_type == "DESIGN":
-            return self.session.get(DesignJob, job_id)
+            return self.session.get(self.design_model, job_id)
         elif job_type == "INSPECTION":
-            return self.session.get(InspectionJob, job_id)
+            return self.session.get(self.inspection_model, job_id)
         else:
             raise ValueError(f"Invalid job_type: {job_type}")
 
     def get_by_job_no(
         self,
         job_no: str,
-        job_type: str
+        job_type: str,
     ) -> Optional[DesignJob | InspectionJob]:
         """Get job by job number and type."""
         if job_type == "DESIGN":
-            stmt = select(DesignJob).where(DesignJob.job_no == job_no)
+            stmt = select(self.design_model).where(self.design_model.job_no == job_no)
             return self.session.exec(stmt).first()
         elif job_type == "INSPECTION":
-            stmt = select(InspectionJob).where(InspectionJob.job_no == job_no)
+            stmt = select(self.inspection_model).where(self.inspection_model.job_no == job_no)
             return self.session.exec(stmt).first()
         else:
             raise ValueError(f"Invalid job_type: {job_type}")
@@ -124,138 +155,39 @@ class JobServiceImpl(JobService):
         company_id: int,
         job_type: str,
         limit: Optional[int] = None,
-        offset: int = 0,
-        order_desc: bool = True
-    ) -> List[DesignJob | InspectionJob]:
-        """Get jobs by company ID and type."""
+        order_by: str | None = None,
+    ) -> Sequence[DesignJob | InspectionJob]:
+        """
+        Get all jobs for a company (by type).
+
+        order_by:
+          - None or "date_created_desc" (default): newest first
+          - "date_created_asc": oldest first
+        """
+        order_desc = self._resolve_order_desc(order_by)
+
         if job_type == "DESIGN":
-            return self._get_design_jobs_by_company(company_id, limit, offset, order_desc)
+            return self._get_design_jobs_by_company(company_id, limit=limit, offset=0, order_desc=order_desc)
         elif job_type == "INSPECTION":
-            return self._get_inspection_jobs_by_company(company_id, limit, offset, order_desc)
+            return self._get_inspection_jobs_by_company(company_id, limit=limit, offset=0, order_desc=order_desc)
         else:
             raise ValueError(f"Invalid job_type: {job_type}")
-
-    def list_all(
-        self,
-        job_type: str,
-        limit: Optional[int] = None,
-        offset: int = 0,
-        order_desc: bool = True
-    ) -> List[DesignJob | InspectionJob]:
-        """List all jobs by type."""
-        if job_type == "DESIGN":
-            return self._list_all_design_jobs(limit, offset, order_desc)
-        elif job_type == "INSPECTION":
-            return self._list_all_inspection_jobs(limit, offset, order_desc)
-        else:
-            raise ValueError(f"Invalid job_type: {job_type}")
-
-    # ========================================================================
-    # CONVENIENCE METHODS: Auto-detect job type
-    # ========================================================================
-
-    def get_job_by_id(self, job_id: int) -> Optional[DesignJob | InspectionJob]:
-        """Get job by ID, checking both DESIGN and INSPECTION tables."""
-        # Try DESIGN first
-        job = self.session.get(DesignJob, job_id)
-        if job:
-            return job
-        # Then try INSPECTION
-        return self.session.get(InspectionJob, job_id)
-
-    def get_job_by_job_no(self, job_no: str) -> Optional[DesignJob | InspectionJob]:
-        """Get job by job number, checking both DESIGN and INSPECTION tables."""
-        # Try DESIGN first
-        stmt = select(DesignJob).where(DesignJob.job_no == job_no)
-        job = self.session.exec(stmt).first()
-        if job:
-            return job
-        # Then try INSPECTION
-        stmt = select(InspectionJob).where(InspectionJob.job_no == job_no)
-        return self.session.exec(stmt).first()
-
-    def get_jobs_by_company_id(
-        self,
-        company_id: int,
-        limit: Optional[int] = None,
-        offset: int = 0
-    ) -> Sequence[DesignJob | InspectionJob]:
-        """Get all jobs for a company (both DESIGN and INSPECTION)."""
-        design_jobs = self._get_design_jobs_by_company(company_id)
-        inspection_jobs = self._get_inspection_jobs_by_company(company_id)
-
-        # Combine and sort by date_created descending
-        all_jobs = list(design_jobs) + list(inspection_jobs)
-        all_jobs.sort(key=lambda j: j.date_created, reverse=True)
-
-        # Apply offset and limit
-        if offset:
-            all_jobs = all_jobs[offset:]
-        if limit:
-            all_jobs = all_jobs[:limit]
-
-        return all_jobs
-
-    def update_job(
-        self,
-        job_id: int,
-        payload
-    ) -> Optional[DesignJob | InspectionJob]:
-        """Update job by ID, auto-detecting job type."""
-        # Build update payload from DTO
-        update_payload = JobUpdate(
-            title=getattr(payload, 'title', None),
-            status=getattr(payload, 'status', None),
-            quotation_status=getattr(payload, 'quotation_status', None),
-            quotation_issued_at=getattr(payload, 'quotation_issued_at', None)
-        )
-
-        # Try DESIGN first
-        design_job = self.session.get(DesignJob, job_id)
-        if design_job:
-            return self._update_design_job(job_id, update_payload)
-
-        # Then try INSPECTION
-        inspection_job = self.session.get(InspectionJob, job_id)
-        if inspection_job:
-            return self._update_inspection_job(job_id, update_payload)
-
-        return None
-
-    def list_all_jobs(
-        self,
-        limit: Optional[int] = None,
-        offset: int = 0
-    ) -> Sequence[DesignJob | InspectionJob]:
-        """List all jobs (both DESIGN and INSPECTION)."""
-        design_jobs = self._list_all_design_jobs()
-        inspection_jobs = self._list_all_inspection_jobs()
-
-        # Combine and sort by date_created descending
-        all_jobs = list(design_jobs) + list(inspection_jobs)
-        all_jobs.sort(key=lambda j: j.date_created, reverse=True)
-
-        # Apply offset and limit
-        if offset:
-            all_jobs = all_jobs[offset:]
-        if limit:
-            all_jobs = all_jobs[:limit]
-
-        return all_jobs
-
-    # ========================================================================
-    # QUERY HELPERS WITH COMPANY INFO
-    # ========================================================================
 
     def get_by_company_with_info(
         self,
         company_id: int,
         job_type: str,
         limit: Optional[int] = None,
-        order_by: str | None = None
+        order_by: str | None = None,
     ) -> list[dict]:
-        """Get jobs by company with basic info dict."""
-        jobs = self.get_by_company(company_id, job_type, limit=limit)
+        """
+        Get all jobs for a company with basic job+company info dict.
+
+        order_by:
+          - None or "date_created_desc" (default): newest first
+          - "date_created_asc": oldest first
+        """
+        jobs = self.get_by_company(company_id, job_type, limit=limit, order_by=order_by)
 
         return [
             {
@@ -264,31 +196,32 @@ class JobServiceImpl(JobService):
                 "title": job.title,
                 "status": job.status,
                 "quotation_status": job.quotation_status,
-                "company_id": job.company_id
+                "company_id": job.company_id,
             }
             for job in jobs
         ]
 
-    def list_all_with_company(
+    def list_all(
         self,
         job_type: str,
         limit: Optional[int] = None,
-        order_by: str | None = None
-    ) -> list[dict]:
-        """List all jobs with basic info dict."""
-        jobs = self.list_all(job_type, limit=limit)
+        order_by: str | None = None,
+    ) -> Sequence[DesignJob | InspectionJob]:
+        """
+        Get all jobs of a specific type.
 
-        return [
-            {
-                "id": job.id,
-                "job_no": job.job_no,
-                "title": job.title,
-                "status": job.status,
-                "quotation_status": job.quotation_status,
-                "company_id": job.company_id
-            }
-            for job in jobs
-        ]
+        order_by:
+          - None or "date_created_desc" (default): newest first
+          - "date_created_asc": oldest first
+        """
+        order_desc = self._resolve_order_desc(order_by)
+
+        if job_type == "DESIGN":
+            return self._list_all_design_jobs(limit=limit, offset=0, order_desc=order_desc)
+        elif job_type == "INSPECTION":
+            return self._list_all_inspection_jobs(limit=limit, offset=0, order_desc=order_desc)
+        else:
+            raise ValueError(f"Invalid job_type: {job_type}")
 
     # ========================================================================
     # PRIVATE HELPERS: Direct SQLModel Operations
@@ -296,7 +229,7 @@ class JobServiceImpl(JobService):
 
     def _update_design_job(self, job_id: int, payload: JobUpdate) -> Optional[DesignJob]:
         """Update a design job directly."""
-        job = self.session.get(DesignJob, job_id)
+        job = self.session.get(self.design_model, job_id)
         if not job:
             return None
 
@@ -314,7 +247,7 @@ class JobServiceImpl(JobService):
 
     def _update_inspection_job(self, job_id: int, payload: JobUpdate) -> Optional[InspectionJob]:
         """Update an inspection job directly."""
-        job = self.session.get(InspectionJob, job_id)
+        job = self.session.get(self.inspection_model, job_id)
         if not job:
             return None
 
@@ -335,12 +268,14 @@ class JobServiceImpl(JobService):
         company_id: int,
         limit: Optional[int] = None,
         offset: int = 0,
-        order_desc: bool = True
-    ) -> List[DesignJob]:
+        order_desc: bool = True,
+    ) -> list[DesignJob]:
         """Get design jobs by company ID."""
-        stmt = select(DesignJob).where(DesignJob.company_id == company_id)
+        stmt = select(self.design_model).where(self.design_model.company_id == company_id)
         stmt = stmt.order_by(
-            DesignJob.date_created.desc() if order_desc else DesignJob.date_created.asc()  # type: ignore
+            self.design_model.date_created.desc()  # type: ignore
+            if order_desc
+            else self.design_model.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)
@@ -353,12 +288,14 @@ class JobServiceImpl(JobService):
         company_id: int,
         limit: Optional[int] = None,
         offset: int = 0,
-        order_desc: bool = True
-    ) -> List[InspectionJob]:
+        order_desc: bool = True,
+    ) -> list[InspectionJob]:
         """Get inspection jobs by company ID."""
-        stmt = select(InspectionJob).where(InspectionJob.company_id == company_id)
+        stmt = select(self.inspection_model).where(self.inspection_model.company_id == company_id)
         stmt = stmt.order_by(
-            InspectionJob.date_created.desc() if order_desc else InspectionJob.date_created.asc()  # type: ignore
+            self.inspection_model.date_created.desc()  # type: ignore
+            if order_desc
+            else self.inspection_model.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)
@@ -370,12 +307,14 @@ class JobServiceImpl(JobService):
         self,
         limit: Optional[int] = None,
         offset: int = 0,
-        order_desc: bool = True
-    ) -> List[DesignJob]:
+        order_desc: bool = True,
+    ) -> list[DesignJob]:
         """List all design jobs."""
-        stmt = select(DesignJob)
+        stmt = select(self.design_model)
         stmt = stmt.order_by(
-            DesignJob.date_created.desc() if order_desc else DesignJob.date_created.asc()  # type: ignore
+            self.design_model.date_created.desc()  # type: ignore
+            if order_desc
+            else self.design_model.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)
@@ -387,12 +326,14 @@ class JobServiceImpl(JobService):
         self,
         limit: Optional[int] = None,
         offset: int = 0,
-        order_desc: bool = True
-    ) -> List[InspectionJob]:
+        order_desc: bool = True,
+    ) -> list[InspectionJob]:
         """List all inspection jobs."""
-        stmt = select(InspectionJob)
+        stmt = select(self.inspection_model)
         stmt = stmt.order_by(
-            InspectionJob.date_created.desc() if order_desc else InspectionJob.date_created.asc()  # type: ignore
+            self.inspection_model.date_created.desc()  # type: ignore   
+            if order_desc
+            else self.inspection_model.date_created.asc()  # type: ignore
         )
         if offset:
             stmt = stmt.offset(offset)
@@ -408,7 +349,7 @@ class JobServiceImpl(JobService):
         self,
         job_type: str,
         company_id: int,
-        index: int = 1
+        index: int = 1,
     ) -> str:
         """Generate job number based on type and date."""
         today = date.today()
@@ -421,3 +362,15 @@ class JobServiceImpl(JobService):
             return f"Q-JICP-{year}-{month}-{index}"
         else:
             raise ValueError(f"Invalid job_type: {job_type}")
+
+    @staticmethod
+    def _resolve_order_desc(order_by: str | None) -> bool:
+        """
+        Turn order_by string into a boolean flag for descending order.
+
+        Returns True for desc, False for asc.
+        """
+        if order_by == "date_created_asc":
+            return False
+        # Default and "date_created_desc"
+        return True

@@ -1,4 +1,4 @@
-from app.schemas.main_flow_state import MainFlowState
+from app.core.agent_config.MainFlowState import MainFlowState
 from app.llm.invoke_claude_llm import invoke_claude_llm
 from app.prompt.agent_classifier_prompt_template import CLASSIFIER_SYSTEM_PROMPT, AgentClassifierOutput
 

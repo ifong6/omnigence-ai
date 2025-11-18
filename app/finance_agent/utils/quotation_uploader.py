@@ -1,4 +1,4 @@
-from app.schemas.finance_agent_state import FinanceAgentState
+from app.FinanceFlowState import FinanceAgentState
 import logging
 import boto3
 from botocore.exceptions import ClientError

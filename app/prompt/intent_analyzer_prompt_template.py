@@ -14,11 +14,11 @@ INTENT_PROMPT_TEMPLATE = """
     
     Step 2: Identify what the user is asking for.
         
-    Step 3: Output format, MUST use **IntentClassifierOutput** schema: 
+    Step 3: Output format, MUST use **IntentClassifierOutput** schema:
         ```json
-        {
-            "intents": ["<summarize a list of user's intents>"]
+        {{
+            "intents": ["<summarize a list of user's intents>"],
             "messages": "<Explaining your reasoning and thought process of your intent analysis result>"
-        }
+        }}
         ```
 """

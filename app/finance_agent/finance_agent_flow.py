@@ -1,4 +1,4 @@
-from app.schemas.finance_agent_state import FinanceAgentState
+from app.FinanceFlowState import FinanceAgentState
 from app.finance_agent.agent_config.agent_registry import AGENT_NODES, STATIC_EDGES, CONDITIONAL_EDGES
 from langgraph.graph import StateGraph
 from app.dto.agent_dto import AgentFlowRequestDTO

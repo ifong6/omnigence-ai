@@ -1,51 +1,85 @@
+# app/models/company_models.py
 from typing import Optional
-from datetime import datetime
 from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, Index, text
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy import Index
 from app.models.enums import DBTable
 
+# ============================================================
+# Base: Shared fields (NOT a table)
+# ============================================================
 
-class CompanyBase(SQLModel):
-    """Shared attributes for create/update/read operations."""
+class CompanyBaseModel(SQLModel):
+    """
+    Shared fields, not a table.
+    Used for Schema and Model to inherit common fields.
+    """
     name: str = Field(index=True, max_length=200)
     alias: Optional[str] = Field(default=None, max_length=64)
     address: Optional[str] = Field(default=None, max_length=300)
     phone: Optional[str] = Field(default=None, max_length=32)
 
 
-class Company(CompanyBase, table=True):
-    """
-    Company model mapped to Finance.company table.
+# ============================================================
+# Schema: Table structure / ORM mapping
+# ============================================================
 
-    Provides ORM capabilities for company records.
+class CompanySchema(CompanyBaseModel, table=True):
+    """
+    ORM mapping of the Finance.company table Schema.
     """
     __tablename__: str = DBTable.COMPANY_TABLE.table
     __table_args__ = (
         Index("idx_company_alias", "alias"),
-        {"schema": DBTable.COMPANY_TABLE.schema},  # ✅ must be last and wrapped in a tuple
+        {"schema": DBTable.COMPANY_TABLE.schema},  # must be last and wrapped in a tuple
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
 
-# ======================================================================
-# Input/Output Models (aligned with job_models.py)
-# ======================================================================
+# ============================================================
+# Model: Business data shape / DTO
+# ============================================================
 
-class CompanyCreate(CompanyBase):
-    """Used for company creation."""
-    pass
+class CompanyCreateModel(SQLModel):
+    """
+    Used for creating Company records (business layer).
+    Does not include id, id is handled by DB.
+    """
+    name: str
+    alias: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
 
 
-class CompanyUpdate(SQLModel):
-    """Used for partial company updates."""
+class CompanyUpdateModel(SQLModel):
+    """
+    Used for updating Company records (business layer).
+    All fields are optional (only update provided fields).
+    """
     name: Optional[str] = None
     alias: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
 
 
-class CompanyRow(Company):
-    """Used for read operations."""
-    pass
+class CompanyReadModel(SQLModel):
+    """
+    Used for reading / returning Company records (business layer).
+    """
+    id: int
+    name: str
+    alias: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+
+
+# ============================================================
+# Backward compatibility aliases
+# ============================================================
+
+Company = CompanySchema  # DEPRECATED: Please migrate to CompanySchema
+CompanyCreate = CompanyCreateModel  # DEPRECATED: Please migrate to CompanyCreateModel
+CompanyUpdate = CompanyUpdateModel  # DEPRECATED: Please migrate to CompanyUpdateModel
+CompanyRow = CompanyReadModel  # DEPRECATED: Please migrate to CompanyReadModel
+CompanyModel = CompanyBaseModel  # DEPRECATED: Please migrate to CompanyBaseModel
+CompanyBase = CompanyBaseModel  # DEPRECATED: Please migrate to CompanyBaseModel

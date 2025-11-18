@@ -1,4 +1,4 @@
-from app.schemas.finance_agent_state import FinanceAgentState
+from app.FinanceFlowState import FinanceAgentState
 from app.llm.invoke_claude_llm import invoke_claude_llm
 from app.prompt.planning_prompt_template import PLANNING_PROMPT_TEMPLATE, PlannerOutput
 

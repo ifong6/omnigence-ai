@@ -1,7 +1,7 @@
 from typing import Any, Dict
 import json
 from sqlmodel import Session
-from app.db.engine import engine
+from app.db.supabase.engine import engine
 from app.services.impl import QuotationServiceImpl
         
 def quotation_service_tool(operation: str, params: Dict[str, Any]) -> str:

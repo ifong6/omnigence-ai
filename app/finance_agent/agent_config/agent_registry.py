@@ -1,7 +1,7 @@
 from langgraph.constants import END
 from app.finance_agent.intent_analyzer import intent_analyzer_node
 from app.finance_agent.crud_react_agent import crud_react_agent_node
-from app.schemas.finance_agent_state import FinanceAgentState
+from app.FinanceFlowState import FinanceAgentState
 
 AGENT_NODES = {
     "intent_analyzer": intent_analyzer_node,

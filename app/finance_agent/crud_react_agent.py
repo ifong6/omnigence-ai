@@ -1,5 +1,5 @@
 from typing import Any
-from app.schemas.finance_agent_state import FinanceAgentState
+from app.FinanceFlowState import FinanceAgentState
 from app.finance_agent.utils.invoke_react_agent import invoke_react_agent
 from app.finance_agent.tools.service_tool_registry import SERVICE_TOOLS
 from app.prompt.finance_agent_react_prompt import UNIFIED_CRUD_REACT_PROMPT_TEMPLATE
