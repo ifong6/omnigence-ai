@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Callable
 from functools import wraps
 from fastapi import HTTPException, status
-from app.dto.base_response import (
+from app.core.response_models.BaseAPIResponse import (
     create_success_response,
     create_error_response,
     create_invalid_request_response,

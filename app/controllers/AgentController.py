@@ -6,7 +6,7 @@ from app.utils.exceptions import InterruptException
 from app.utils.requests import UserRequest, HumanInTheLoopRequest
 
 # Create router
-router = APIRouter(prefix="/api/agents", tags=["AI Agents"])
+router = APIRouter(prefix="/api/v1/agents", tags=["AI Agents"])
 
 class AgentController(BaseController):
     @staticmethod
@@ -14,7 +14,7 @@ class AgentController(BaseController):
     @router.post("/orchestrator", response_model=dict)
     def call_orchestrator_agent(request: UserRequest):
         BaseController.log_request(
-            "/api/agents/orchestrator",
+            "/api/v1/agents/orchestrator",
             {"session_id": request.session_id, "message": request.message[:100]}
         )
 
@@ -27,7 +27,7 @@ class AgentController(BaseController):
                 "result": final_result
             }
 
-            BaseController.log_response("/api/agents/orchestrator", response)
+            BaseController.log_response("/api/v1/agents/orchestrator", response)
             return response
 
         except InterruptException as interrupt:
@@ -62,7 +62,7 @@ class AgentController(BaseController):
     @router.post("/human-in-the-loop", response_model=dict)
     def handle_human_in_the_loop(request: HumanInTheLoopRequest):
         BaseController.log_request(
-            "/api/agents/human-in-the-loop",
+            "/api/v1/agents/human-in-the-loop",
             {"session_id": request.session_id, "message": request.message[:100]}
         )
 
@@ -75,7 +75,7 @@ class AgentController(BaseController):
                 "result": resume_result
             }
 
-            BaseController.log_response("/api/agents/human-in-the-loop", response)
+            BaseController.log_response("/api/v1/agents/human-in-the-loop", response)
             return response
 
         except KeyError as e:
@@ -100,7 +100,7 @@ class AgentController(BaseController):
     @router.post("/finance-agent", response_model=dict)
     def call_finance_agent(request: UserRequest):
         BaseController.log_request(
-            "/api/agents/finance-agent",
+            "/api/v1/agents/finance-agent",
             {"session_id": request.session_id, "message": request.message[:100]}
         )
 
@@ -118,7 +118,7 @@ class AgentController(BaseController):
                 "result": result
             }
 
-            BaseController.log_response("/api/agents/finance-agent", response)
+            BaseController.log_response("/api/v1/agents/finance-agent", response)
             return response
 
         except Exception as e:

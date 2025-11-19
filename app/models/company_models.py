@@ -1,8 +1,8 @@
-# app/models/company_models.py
 from typing import Optional
 from sqlmodel import SQLModel, Field
 from sqlalchemy import Index
 from app.models.enums import DBTable
+import os
 
 # ============================================================
 # Base: Shared fields (NOT a table)
@@ -23,6 +23,8 @@ class CompanyBaseModel(SQLModel):
 # Schema: Table structure / ORM mapping
 # ============================================================
 
+USE_DB_SCHEMA = os.getenv("USE_DB_SCHEMA", "1") == "1"
+
 class CompanySchema(CompanyBaseModel, table=True):
     """
     ORM mapping of the Finance.company table Schema.
@@ -30,7 +32,7 @@ class CompanySchema(CompanyBaseModel, table=True):
     __tablename__: str = DBTable.COMPANY_TABLE.table
     __table_args__ = (
         Index("idx_company_alias", "alias"),
-        {"schema": DBTable.COMPANY_TABLE.schema},  # must be last and wrapped in a tuple
+        {"schema": DBTable.COMPANY_TABLE.schema} if USE_DB_SCHEMA else {}
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
