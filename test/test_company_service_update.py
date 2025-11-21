@@ -29,32 +29,6 @@ class TestCompanyServiceUpdate(unittest.TestCase):
     def tearDown(self): # Tear down the test environment
         self.session.close() # Close the session after the test
 
-    # ========== Helper Function ==========
-    def _print_table_schema(self):
-        """Print the table structure and all rows"""
-        print("\n" + "="*60)
-        print("TABLE STRUCTURE")
-        print("="*60)
-        
-        # Get table structure
-        result = self.session.execute(text("PRAGMA table_info(company)"))
-        for row in result:
-            print(f"Column: {row[1]:<20} Type: {row[2]:<15} NotNull: {row[3]} PK: {row[5]}")
-        
-        print("\n" + "="*60)
-        print("TABLE DATA")
-        print("="*60)
-        
-        # Get all companies
-        companies = self.session.execute(text("SELECT * FROM company")).all()
-        if not companies:
-            print("(No data)")
-        else:
-            for company in companies:
-                print(company)
-        
-        print("="*60 + "\n")
-
     def test_update_company(self):
         company_id = self.default_company.id
         assert company_id is not None  

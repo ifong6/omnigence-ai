@@ -1,11 +1,11 @@
 from langchain_core.tools import Tool
-from app.finance_agent.quotation.tools.crud_tools.create_quotation_no_tool import create_quotation_no_tool
-from app.finance_agent.quotation.tools.crud_tools.get_job_no_by_project_name_tool import get_job_no_by_project_name_tool
-from app.finance_agent.quotation.tools.crud_tools.extract_quotation_info_tool import extract_quotation_info_tool
-from app.finance_agent.quotation.tools.crud_tools.get_client_info_by_project_name_tool import get_client_info_by_project_name_tool
-from app.finance_agent.quotation.tools.crud_tools.create_quotation_in_db import create_quotation_in_db
-from app.finance_agent.quotation.tools.crud_tools.update_quotation_tool import update_quotation_tool
-from app.finance_agent.quotation.tools.output_quotation_info_for_ui import output_quotation_info_for_ui
+from app.legacy.quotation_tools.tools.crud_tools.create_quotation_no_tool import create_quotation_no_tool
+from app.legacy.quotation_tools.tools.crud_tools.get_job_no_by_project_name_tool import get_job_no_by_project_name_tool
+from app.legacy.quotation_tools.tools.crud_tools.extract_quotation_info_tool import extract_quotation_info_tool
+from app.legacy.quotation_tools.tools.crud_tools.get_client_info_by_project_name_tool import get_client_info_by_project_name_tool
+from app.legacy.quotation_tools.tools.crud_tools.create_quotation_in_db import create_quotation_in_db
+from app.legacy.quotation_tools.tools.crud_tools.update_quotation_tool import update_quotation_tool
+from app.legacy.quotation_tools.tools.output_quotation_info_for_ui import output_quotation_info_for_ui
 """
 Quotation CRUD Tools
 

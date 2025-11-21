@@ -1,13 +1,15 @@
 # app/models/quotation_models.py
+import os
 from typing import Optional, List, Any
 from datetime import date, datetime
 from decimal import Decimal
-
 from sqlmodel import SQLModel, Field, Relationship, Column
 from sqlalchemy import Enum as SAEnum, Computed, Numeric
 from pydantic import BaseModel, Field as PydanticField
-
 from app.models.enums import UnitType, DBTable
+
+# Check if we should use schema prefix (default: True for production, False for testing)
+USE_DB_SCHEMA = os.getenv("USE_DB_SCHEMA", "1") == "1"
 
 
 # ============================================================
@@ -20,7 +22,7 @@ class QuotationBaseModel(SQLModel):
     用于 Schema 和 Model 继承公共字段。
     """
     quo_no: str = Field(index=True, max_length=50)
-    client_id: int = Field(foreign_key="Finance.company.id")
+    client_id: int = Field(foreign_key="Finance.company.id" if USE_DB_SCHEMA else "company.id")
     project_name: str
     date_issued: date
     status: str = Field(default="DRAFTED", max_length=20)
@@ -35,7 +37,7 @@ class QuotationItemBaseModel(SQLModel):
     共享字段，不是表。
     用于 Schema 和 Model 继承公共字段。
     """
-    quotation_id: int = Field(foreign_key="Finance.quotation.id")
+    quotation_id: int = Field(foreign_key="Finance.quotation.id" if USE_DB_SCHEMA else "quotation.id")
     item_desc: str
     quantity: int
     unit_price: Decimal = Field(default=Decimal("0.00"))
@@ -53,7 +55,7 @@ class QuotationSchema(QuotationBaseModel, table=True):
     - created_at / updated_at 由 DB 生成，应用不传，由 server_default(now()) 填充。
     """
     __tablename__: str = DBTable.QUOTATION_TABLE.table
-    __table_args__ = {"schema": DBTable.QUOTATION_TABLE.schema}
+    __table_args__ = {"schema": DBTable.QUOTATION_TABLE.schema} if USE_DB_SCHEMA else {}
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -79,7 +81,7 @@ class QuotationItemSchema(QuotationItemBaseModel, table=True):
     - amount 由 DB 生成 (GENERATED ALWAYS AS quantity * unit_price)。
     """
     __tablename__: str = DBTable.QUOTATION_ITEM_TABLE.table
-    __table_args__ = {"schema": DBTable.QUOTATION_ITEM_TABLE.schema}
+    __table_args__ = {"schema": DBTable.QUOTATION_ITEM_TABLE.schema} if USE_DB_SCHEMA else {}
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -87,7 +89,7 @@ class QuotationItemSchema(QuotationItemBaseModel, table=True):
     unit: UnitType = Field(
         default=UnitType.Lot,
         sa_column=Column(
-            SAEnum(UnitType, name="unit_type", schema="Finance", create_type=False),
+            SAEnum(UnitType, name="unit_type", schema="Finance" if USE_DB_SCHEMA else None, create_type=False),
             nullable=False,
             server_default="Lot",
         ),
@@ -113,8 +115,8 @@ class QuotationItemSchema(QuotationItemBaseModel, table=True):
 
 class QuotationCreateModel(QuotationBaseModel):
     """
-    创建 Quotation 记录时用的 DTO（业务层）。
-    不包含 id / created_at / updated_at，这些都由 DB 负责。
+    创建 Quotation 记录时用的 DTO (业务层)。
+    不包含 id / created_at / updated_at,这些都由 DB 负责。
     """
     pass
 
@@ -146,15 +148,15 @@ class QuotationReadModel(QuotationBaseModel):
 
 class QuotationItemCreateModel(QuotationItemBaseModel):
     """
-    创建 QuotationItem 记录时用的 DTO（业务层）。
-    不包含 id / amount，这些都由 DB 负责。
+    DTO for creating QuotationItem records (business layer).
+    不包含 id / amount,这些都由 DB 负责。
     """
     pass
 
 
 class QuotationItemUpdateModel(SQLModel):
     """
-    更新 QuotationItem 记录时用的 DTO（业务层）。
+    DTO for updating QuotationItem records (business layer).
     所有字段都是可选的（只更新提供的字段）。
     """
     item_desc: Optional[str] = None
@@ -174,10 +176,6 @@ class QuotationItemReadModel(QuotationItemBaseModel):
 # ============================================================
 # 向后兼容别名（保持老代码暂时不崩）
 # ============================================================
-
-# Schema 别名
-Quotation = QuotationSchema  # DEPRECATED: 请迁移到 QuotationSchema
-QuotationItem = QuotationItemSchema  # DEPRECATED: 请迁移到 QuotationItemSchema
 
 # Model 别名
 QuotationCreate = QuotationCreateModel  # DEPRECATED: 请迁移到 QuotationCreateModel
@@ -200,7 +198,7 @@ QuotationItemBase = QuotationItemBaseModel  # DEPRECATED: 请迁移到 Quotation
 class QuotationItemInput(BaseModel):
     """
     Schema for a single quotation item in the generation flow.
-    （Flow / Agent 层使用，唔直接对应 DB 行）
+    (Flow / Agent layer, not directly corresponding to DB rows)
     """
     project_item_description: str = PydanticField(
         ..., description="Item description"

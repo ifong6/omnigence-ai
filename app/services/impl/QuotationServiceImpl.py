@@ -1,79 +1,94 @@
 from typing import Optional, List, Dict, Any, Sequence
 from datetime import date
 from decimal import Decimal
-from sqlmodel import Session, select, func
-from app.models.quotation_models import Quotation, QuotationCreate, QuotationUpdate
+
+from sqlmodel import Session, select
+
+from app.models.quotation_models import (
+    QuotationSchema,
+    QuotationCreate,
+    QuotationUpdate,
+    QuotationItemSchema,
+)
+from app.models.job_models import DesignJobSchema, InspectionJobSchema
 from app.services import QuotationService
-
-
-def _payload_to_dict(payload: QuotationCreate | QuotationUpdate) -> Dict[str, Any]:
-    """Convert Pydantic/SQLModel payload to dictionary, excluding None values."""
-    return payload.model_dump(exclude_none=True)
+from app.services.helpers.quotation_service_helper import (
+    payload_to_dict,
+    compose_quo_no,
+    parse_quo_no,
+    get_next_quotation_index_for_job,
+    get_next_revision_for_job_and_index,
+    get_latest_quotation_for_job,
+)
 
 
 class QuotationServiceImpl(QuotationService):
     """
-    Quotation service implementation using SQLModel models directly.
+    Concrete implementation of QuotationService using SQLModel.
 
-    No DAO/Repo layer - direct Session operations for CRUD.
+    - Supports both DESIGN and INSPECTION jobs (by job_no prefix)
+    - Handles quotation headers and line items
     """
 
-    def __init__(self, session: Session):
-        """
-        Initialize service with a SQLModel session.
-
-        Args:
-            session: Active SQLModel session for database operations
-        """
+    def __init__(self, session: Session) -> None:
         super().__init__(session)
-        self.session = session
-        self.quotation_model = Quotation
+        self.session: Session = session
 
-    def get_quotation_by_id(self, quotation_id: int) -> Optional[Quotation]:
+        # ORM models – overridable in tests
+        self.quotation_model = QuotationSchema
+        self.quotation_item_model = QuotationItemSchema
+        self.design_job_model = DesignJobSchema
+        self.inspection_job_model = InspectionJobSchema
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _resolve_job_model(self, job_no: str):
         """
-        Get a quotation by ID.
+        Decide which job table to use based on job_no prefix.
 
-        Args:
-            quotation_id: Quotation ID
-
-        Returns:
-            Quotation if found, None otherwise
+        - Q-JCP-...   -> Design job
+        - Q-JICP-...  -> Inspection job
         """
+        if job_no.startswith("Q-JICP-"):
+            return self.inspection_job_model
+        return self.design_job_model
+
+    def _get_job_by_job_no(self, job_no: str):
+        job_model = self._resolve_job_model(job_no)
+        stmt = select(job_model).where(job_model.job_no == job_no)  # type: ignore[attr-defined]
+        job = self.session.exec(stmt).first()
+        if not job:
+            job_type = "Inspection" if job_model is self.inspection_job_model else "Design"
+            raise ValueError(f"{job_type} job with job_no '{job_no}' not found")
+        return job
+
+    # ------------------------------------------------------------------
+    # Basic queries
+    # ------------------------------------------------------------------
+    def get_quotation_by_id(self, quotation_id: int) -> Optional[QuotationSchema]:
         return self.session.get(self.quotation_model, quotation_id)
 
-    def get_quotation_by_quo_no(self, quo_no: str) -> Optional[Quotation]:
-        """
-        Get quotation header by quotation number.
-
-        Args:
-            quo_no: Quotation number (e.g., "Q-JCP-25-01-1-1")
-
-        Returns:
-            First quotation with this number if found, None otherwise
-        """
-        stmt = select(self.quotation_model).where(self.quotation_model.quo_no == quo_no)
+    def get_quotation_by_quo_no(self, quo_no: str) -> Optional[QuotationSchema]:
+        stmt = select(self.quotation_model).where(
+            self.quotation_model.quo_no == quo_no  # type: ignore[attr-defined]
+        )
         return self.session.exec(stmt).first()
 
     def get_quotations_by_client(
         self,
         client_id: int,
         limit: Optional[int] = None,
-        order_by: str | None = None
-    ) -> Sequence[Quotation]:
-        """
-        Get all quotations for a client.
-
-        Args:
-            client_id: Client/Company ID
-            limit: Maximum number of results
-            order_by: Ordering column (not used, kept for API compatibility)
-
-        Returns:
-            List of quotations for the client
-        """
+        order_by: str | None = None,
+    ) -> Sequence[QuotationSchema]:
         stmt = select(self.quotation_model).where(
-            self.quotation_model.client_id == client_id
-        ).order_by(self.quotation_model.date_issued.desc())  # type: ignore
+            self.quotation_model.client_id == client_id  # type: ignore[attr-defined]
+        )
+
+        if order_by and hasattr(self.quotation_model, order_by):
+            stmt = stmt.order_by(getattr(self.quotation_model, order_by).desc())
+        else:
+            stmt = stmt.order_by(self.quotation_model.date_created.desc())  # type: ignore[attr-defined]
 
         if limit:
             stmt = stmt.limit(limit)
@@ -84,22 +99,26 @@ class QuotationServiceImpl(QuotationService):
         self,
         project_name: str,
         limit: Optional[int] = None,
-        order_by: str | None = None
-    ) -> Sequence[Quotation]:
+        order_by: str | None = None,
+    ) -> Sequence[QuotationSchema]:
         """
-        Get all quotations for a project.
-
-        Args:
-            project_name: Exact project name
-            limit: Maximum number of results
-            order_by: Ordering column (not used, kept for API compatibility)
-
-        Returns:
-            List of quotations for the project
+        Filter by job title via join (project_name == job.title).
+        Currently joins DESIGN jobs; extend if you need INSPECTION too.
         """
-        stmt = select(self.quotation_model).where(
-            self.quotation_model.project_name == project_name
-        ).order_by(self.quotation_model.date_issued.desc())  # type: ignore
+        job_model = self.design_job_model
+        stmt = (
+            select(self.quotation_model)
+            .join(
+                job_model,
+                self.quotation_model.job_id == job_model.id,  # type: ignore[attr-defined]
+            )
+            .where(job_model.title == project_name)  # type: ignore[attr-defined]
+        )
+
+        if order_by and hasattr(self.quotation_model, order_by):
+            stmt = stmt.order_by(getattr(self.quotation_model, order_by).desc())
+        else:
+            stmt = stmt.order_by(self.quotation_model.date_created.desc())  # type: ignore[attr-defined]
 
         if limit:
             stmt = stmt.limit(limit)
@@ -108,62 +127,88 @@ class QuotationServiceImpl(QuotationService):
 
     def get_quotation_total(self, quo_no: str) -> Dict[str, Any]:
         """
-        Calculate total for a quotation.
+        Return total amount and item count for a quotation.
 
-        Args:
-            quo_no: Quotation number
-
-        Returns:
-            Dict with keys:
-            - total: Total amount (Decimal)
-            - item_count: Number of items (int)
-
-        Example:
-            >>> service.get_quotation_total("Q-JCP-25-01-1-1")
-            {'total': Decimal('50000.00'), 'item_count': 1}
+        For now we trust the `total_amount` on the header; if in the
+        future you wire up a proper relationship to items, you can
+        recalculate from there.
         """
-        # For now, return placeholder - actual implementation depends on QuotationItem
         quotation = self.get_quotation_by_quo_no(quo_no)
         if not quotation:
             return {"total": Decimal("0"), "item_count": 0}
 
-        # If items relationship is loaded, calculate from items
-        if hasattr(quotation, 'items') and quotation.items:
-            total = sum(item.amount or Decimal("0") for item in quotation.items)
-            return {"total": total, "item_count": len(quotation.items)}
+        total = getattr(quotation, "total_amount", None)
+        if total is None:
+            total = Decimal("0")
+        else:
+            total = Decimal(str(total))
 
-        return {"total": Decimal("0"), "item_count": 0}
+        return {
+            "total": total,
+            "item_count": 0,  # you can update this once you track item count
+        }
 
     def list_all(
         self,
-        order_by: str = "date_issued",
+        order_by: str = "date_created",
         descending: bool = True,
-        limit: Optional[int] = None
-    ) -> List[Quotation]:
-        """
-        Get all quotations.
-
-        Args:
-            order_by: Ordering column (default: "date_issued")
-            descending: Sort descending if True (default: True)
-            limit: Maximum number of results
-
-        Returns:
-            List of all quotations
-        """
+        limit: Optional[int] = None,
+    ) -> List[QuotationSchema]:
         stmt = select(self.quotation_model)
-
-        # Apply ordering
-        if descending:
-            stmt = stmt.order_by(self.quotation_model.date_issued.desc())  # type: ignore
-        else:
-            stmt = stmt.order_by(self.quotation_model.date_issued.asc())  # type: ignore
+        if hasattr(self.quotation_model, order_by):
+            col = getattr(self.quotation_model, order_by)
+            stmt = stmt.order_by(col.desc() if descending else col.asc())
 
         if limit:
             stmt = stmt.limit(limit)
 
         return list(self.session.exec(stmt).all())
 
+    def get_by_job_no(
+        self,
+        job_no: str,
+        order_by: str | None = None,
+    ) -> Sequence[QuotationSchema]:
+        stmt = select(self.quotation_model).where(
+            self.quotation_model.quo_no.like(f"{job_no}-%")  # type: ignore[attr-defined]
+        )
+
+        if order_by and hasattr(self.quotation_model, order_by):
+            stmt = stmt.order_by(getattr(self.quotation_model, order_by).desc())
+        else:
+            stmt = stmt.order_by(self.quotation_model.quo_no.desc())  # type: ignore[attr-defined]
+
+        return list(self.session.exec(stmt).all())
+
+    def search_by_project(
+        self,
+        project_name_pattern: str,
+        limit: Optional[int] = 10,
+        order_by: str | None = None,
+    ) -> Sequence[QuotationSchema]:
+        job_model = self.design_job_model
+        stmt = (
+            select(self.quotation_model)
+            .join(
+                job_model,
+                self.quotation_model.job_id == job_model.id,  # type: ignore[attr-defined]
+            )
+            .where(job_model.title.ilike(f"%{project_name_pattern}%"))  # type: ignore[attr-defined]
+        )
+
+        if order_by and hasattr(self.quotation_model, order_by):
+            stmt = stmt.order_by(getattr(self.quotation_model, order_by).desc())
+        else:
+            stmt = stmt.order_by(self.quotation_model.date_created.desc())  # type: ignore[attr-defined]
+
+        if limit:
+            stmt = stmt.limit(limit)
+
+        return list(self.session.exec(stmt).all())
+
+    # ------------------------------------------------------------------
+    # CREATE: new quotation (index 01, 02, ...; always R00)
+    # ------------------------------------------------------------------
     def create_quotation(
         self,
         *,
@@ -173,232 +218,162 @@ class QuotationServiceImpl(QuotationService):
         currency: str = "MOP",
         items: List[Dict[str, Any]],
         date_issued: Optional[date] = None,
-        revision_no: str = "00",
+        revision_no: str = "00",  # ignored for create; always R00
         valid_until: Optional[date] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Create a complete quotation with multiple items.
-
-        Args:
-            job_no: Job number (e.g., "Q-JCP-25-01-1")
-            company_id: Company/Client ID
-            project_name: Project name
-            currency: Currency code (default: "MOP")
-            items: List of item dicts with keys:
-                - project_item_description: Item description
-                - quantity: Quantity
-                - unit: Unit type
-                - sub_amount: Sub amount (unit price * quantity)
-                - total_amount: Total amount
-            date_issued: Issue date (default: today)
-            revision_no: Revision number (00=no revision, 01/02/etc=revision)
-            valid_until: Valid until date (optional)
-            notes: Notes/remarks (optional)
-
-        Returns:
-            Dict with keys:
-            - quotations: List of created quotation records
-            - quo_no: Quotation number
-            - total: Total amount
-            - item_count: Number of items
-        """
         if not date_issued:
             date_issued = date.today()
 
-        # Determine if this is a revision (anything other than "00")
-        is_revision = revision_no != "00"
+        # 1) Find job & job_id
+        job = self._get_job_by_job_no(job_no)
+        job_id = job.id
 
-        # Generate quotation number
-        quo_no = self.generate_quotation_number(job_no, revision_no)
+        # 2) Next quotation index for this job
+        next_index = get_next_quotation_index_for_job(
+            self.session,
+            self.quotation_model,
+            job_no,
+        )
 
-        # Create quotation header
-        quotation_payload = QuotationCreate(
+        # 3) Compose quo_no – new quotation always R00
+        quo_no = compose_quo_no(job_no, next_index, revision_no_int=0)
+
+        # 4) Compute line items and total
+        total_amount = Decimal("0")
+        prepared_items: List[Dict[str, Any]] = []
+
+        for raw in items:
+            desc = (
+                raw.get("item_desc")
+                or raw.get("project_item_description")
+                or ""
+            )
+            unit = raw.get("unit") or ""
+            quantity = Decimal(str(raw.get("quantity", 0)))
+            unit_price = Decimal(
+                str(
+                    raw.get("unit_price", raw.get("unit_rate", 0))
+                )
+            )
+            amount = quantity * unit_price
+            total_amount += amount
+
+            prepared_items.append(
+                {
+                    "item_desc": desc,
+                    "unit": unit,
+                    "quantity": int(quantity),
+                    "unit_price": float(unit_price),
+                    "amount": float(amount),
+                }
+            )
+
+        # 5) Create quotation header (using QuotationCreate + extra fields)
+        header_payload = QuotationCreate(
             quo_no=quo_no,
             client_id=company_id,
             project_name=project_name,
             date_issued=date_issued,
-            currency=currency,
             status="DRAFTED",
+            currency=currency,
+            revision_no=0,  # R00
             valid_until=valid_until,
             notes=notes,
-            revision_no=int(revision_no) if is_revision else 0
+        )
+        header_data = payload_to_dict(header_payload)
+        header_data.update(
+            {
+                "job_id": job_id,
+                "company_id": company_id,
+                "total_amount": float(total_amount),
+            }
         )
 
-        # Create header using direct model operations
-        data = _payload_to_dict(quotation_payload)
-        quotation = self.quotation_model(**data)
+        quotation = self.quotation_model(**header_data)
         self.session.add(quotation)
-        self.session.flush()
+        self.session.flush()   # get quotation.id
         self.session.refresh(quotation)
 
-        created_quotations = [quotation]
+        # 6) Insert line items
+        for item_data in prepared_items:
+            item_record = self.quotation_item_model(
+                quotation_id=quotation.id,  # type: ignore[attr-defined]
+                **item_data,
+            )
+            self.session.add(item_record)
 
-        # Get total
-        total_info = self.get_quotation_total(quo_no)
+        # Flush items; caller (e.g. tests) may choose when to commit
+        self.session.flush()
 
-        return {
-            "quotations": created_quotations,
-            "quo_no": quo_no,
-            "total": total_info.get("total", Decimal("0")),
-            "item_count": total_info.get("item_count", 0)
+        total_info = {
+            "total": total_amount,
+            "item_count": len(prepared_items),
         }
 
+        return {
+            "quotations": [quotation],
+            "quo_no": quo_no,
+            "total": total_info["total"],
+            "item_count": total_info["item_count"],
+        }
+
+    # ------------------------------------------------------------------
+    # UPDATE: create new revision (R00 → R01 → R02...)
+    # ------------------------------------------------------------------
     def update_quotation(
         self,
-        quotation_ids: List[int],
-        **kwargs
-    ) -> List[Quotation]:
-        """
-        Update one or multiple quotation items.
+        base_quotation_id: int,
+        update_payload: QuotationUpdate,
+    ) -> QuotationSchema:
+        base = self.session.get(self.quotation_model, base_quotation_id)
+        if not base:
+            raise ValueError(f"Base quotation {base_quotation_id} not found")
 
-        Args:
-            quotation_ids: List of quotation IDs to update
-            **kwargs: Fields to update (quo_no, status, notes, etc.)
+        if not getattr(base, "quo_no", None):
+            raise ValueError("Base quotation has no quo_no")
 
-        Returns:
-            List of updated quotations
-        """
-        updated = []
-        payload = QuotationUpdate(**kwargs)
-        data = _payload_to_dict(payload)
+        job_no, quotation_index, _ = parse_quo_no(base.quo_no)  # type: ignore[attr-defined]
 
-        for quo_id in quotation_ids:
-            quotation = self.session.get(self.quotation_model, quo_id)
-            if quotation and data:
-                for key, value in data.items():
-                    setattr(quotation, key, value)
-                self.session.add(quotation)
-                self.session.flush()
-                self.session.refresh(quotation)
-                updated.append(quotation)
+        new_data = payload_to_dict(update_payload)
+        if not new_data:
+            raise ValueError("No fields to update")
 
-        return updated
+        ignore_fields = {"id", "quo_no", "revision_no", "date_created", "job_id"}
+        changed: Dict[str, Any] = {}
 
-    def get_by_job_no(
-        self,
-        job_no: str,
-        order_by: str | None = None
-    ) -> Sequence[Quotation]:
-        """
-        Get all quotations for a given job number.
+        for key, value in new_data.items():
+            if key in ignore_fields:
+                continue
+            if getattr(base, key, None) != value:
+                changed[key] = value
 
-        Args:
-            job_no: Job number (e.g., "Q-JCP-25-01-1")
-            order_by: Ordering column (not used, kept for API compatibility)
+        if not changed:
+            raise ValueError("No metadata changes detected; revision not created")
 
-        Returns:
-            List of quotations matching the job number
-        """
-        # Match quotations where quo_no starts with job_no
-        stmt = select(self.quotation_model).where(
-            self.quotation_model.quo_no.startswith(job_no)  # type: ignore
-        ).order_by(self.quotation_model.date_issued.desc())  # type: ignore
-
-        return list(self.session.exec(stmt).all())
-
-    def search_by_project(
-        self,
-        project_name_pattern: str,
-        limit: Optional[int] = 10,
-        order_by: str | None = None
-    ) -> Sequence[Quotation]:
-        """
-        Search quotations by project name pattern.
-
-        Args:
-            project_name_pattern: Pattern to search for (case-insensitive)
-            limit: Maximum number of results (default: 10)
-            order_by: Ordering column (not used, kept for API compatibility)
-
-        Returns:
-            List of matching quotations
-        """
-        stmt = select(self.quotation_model).where(
-            self.quotation_model.project_name.ilike(f"%{project_name_pattern}%")  # type: ignore
-        ).order_by(self.quotation_model.date_issued.desc())  # type: ignore
-
-        if limit:
-            stmt = stmt.limit(limit)
-
-        return list(self.session.exec(stmt).all())
-
-    def generate_quotation_number(
-        self,
-        job_no: str,
-        revision_no: str = "00"
-    ) -> str:
-        """
-        Public method to generate quotation number.
-
-        Format:
-        - Original: {job_no}-{revision_no} where revision_no starts at 1
-        - Revision: Increment revision_no
-
-        Args:
-            job_no: Job number (e.g., "Q-JCP-25-01-1")
-            revision_no: Revision number (00=no revision, 01/02/etc=revision)
-
-        Returns:
-            Generated quotation number
-        """
-        if revision_no != "00":
-            # Find highest revision number for this job
-            next_revision = self._get_next_revision_number(job_no)
-            return f"{job_no}-{next_revision}"
-        else:
-            # First quotation for this job
-            return f"{job_no}-1"
-
-    # ========================================================================
-    # UTILITY FUNCTIONS: Module-level Helper Functions
-    # ========================================================================
-
-    def _extract_revision_no(self, quo_no: str) -> int:
-        """
-        Extract revision number from quotation number.
-
-        Args:
-            quo_no: Quotation number (e.g., "Q-JCP-25-01-1-2")
-
-        Returns:
-            Revision number (the last segment)
-        """
-        parts = quo_no.split("-")
-        if len(parts) > 1:
-            try:
-                return int(parts[-1])
-            except ValueError:
-                return 1
-        return 1
-
-    def _get_next_revision_number(self, job_no: str) -> int:
-        """
-        Get the next revision number for a job.
-
-        Queries the database to find the highest revision number
-        already assigned to this job, then returns the next one.
-
-        Args:
-            job_no: Job number (e.g., "Q-JCP-25-01-1")
-
-        Returns:
-            Next revision number (default: 2 if no existing quotations)
-        """
-        # Find all quotations matching this job_no with revision suffix
-        stmt = select(self.quotation_model).where(
-            self.quotation_model.quo_no.startswith(job_no)  # type: ignore
+        next_rev = get_next_revision_for_job_and_index(
+            self.session,
+            self.quotation_model,
+            job_no,
+            quotation_index,
         )
-        quotations = list(self.session.exec(stmt).all())
 
-        if not quotations:
-            return 2  # First revision after original (1)
+        new_quo_no = compose_quo_no(job_no, quotation_index, next_rev)
 
-        # Extract revision numbers and find the max
-        max_revision = 1
-        for quo in quotations:
-            revision = self._extract_revision_no(quo.quo_no)
-            if revision > max_revision:
-                max_revision = revision
+        base_dict = base.model_dump()
+        base_dict.update(changed)
+        base_dict["quo_no"] = new_quo_no
+        base_dict["revision_no"] = next_rev
+        base_dict.pop("id", None)
 
-        return max_revision + 1
+        new_q = self.quotation_model(**base_dict)
+        self.session.add(new_q)
+        self.session.flush()
+        self.session.refresh(new_q)
+        return new_q
+
+    # ------------------------------------------------------------------
+    # Public API: simple wrapper for generating a quo_no
+    # ------------------------------------------------------------------
+    def generate_quotation_number(self, job_no: str, revision_no: str = "00") -> str:
+        return compose_quo_no(job_no, 1, int(revision_no))

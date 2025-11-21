@@ -1,4 +1,5 @@
 # app/models/job_models.py
+import os
 from typing import Optional, Literal
 from datetime import datetime
 
@@ -7,6 +8,9 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 
 from app.models.enums import DBTable
+
+# Check if we should use schema prefix (default: True for production, False for testing)
+USE_DB_SCHEMA = os.getenv("USE_DB_SCHEMA", "1") == "1"
 
 
 # ============================================================
@@ -18,7 +22,7 @@ class JobBaseModel(SQLModel):
     Shared fields, not a table.
     Used for Schema and Model to inherit common fields.
     """
-    company_id: int = Field(foreign_key="Finance.company.id")
+    company_id: int = Field(foreign_key="Finance.company.id" if USE_DB_SCHEMA else "company.id")
     title: str
     status: str  # DB enforces enum: 'NEW'|'IN_PROGRESS'|'COMPLETED'|'CANCELLED'
     job_no: Optional[str] = None
@@ -41,7 +45,7 @@ class DesignJobSchema(JobBaseModel, table=True):
     - date_created 由 DB 生成，应用不传，由 server_default(now()) 填充。
     """
     __tablename__: str = DBTable.DESIGN_JOB_TABLE.table
-    __table_args__ = {"schema": DBTable.DESIGN_JOB_TABLE.schema}
+    __table_args__ = {"schema": DBTable.DESIGN_JOB_TABLE.schema} if USE_DB_SCHEMA else {}
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -64,7 +68,7 @@ class InspectionJobSchema(JobBaseModel, table=True):
     - date_created 由 DB 生成，应用不传，由 server_default(now()) 填充。
     """
     __tablename__: str = DBTable.INSPECTION_JOB_TABLE.table
-    __table_args__ = {"schema": DBTable.INSPECTION_JOB_TABLE.schema}
+    __table_args__ = {"schema": DBTable.INSPECTION_JOB_TABLE.schema} if USE_DB_SCHEMA else {}
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -85,8 +89,8 @@ class InspectionJobSchema(JobBaseModel, table=True):
 
 class JobCreateModel(SQLModel):
     """
-    创建 Job 记录时用的 DTO（业务层）。
-    不包含 id / date_created，id & date_created 都由 DB 负责。
+    DTO for creating Job records (business layer).
+    Does not include id / date_created, id & date_created are handled by DB.
     """
     company_id: int
     title: str
