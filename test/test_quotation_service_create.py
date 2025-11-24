@@ -133,7 +133,7 @@ class TestQuotationServiceCreateDesign(unittest.TestCase):
                 {
                     "item_desc": "Test structural design fee",
                     "quantity": 2,
-                    "unit": "LS",
+                    "unit": "Lot",
                     "unit_price": 4000.0,  # 2 * 4000 = 8000
                 }
             ],
@@ -181,8 +181,8 @@ class TestQuotationServiceCreateDesign(unittest.TestCase):
                 {
                     "item_desc": "Initial design scope",
                     "quantity": 1,
-                    "unit": "LS",
-                    "unit_rate": 8000.0,
+                    "unit": "Lot",
+                    "unit_price": 8000.0,
                 }
             ],
             date_issued=datetime.now().date(),
@@ -203,8 +203,8 @@ class TestQuotationServiceCreateDesign(unittest.TestCase):
                 {
                     "item_desc": "Second design scope",
                     "quantity": 1,
-                    "unit": "LS",
-                    "unit_rate": 9000.0,
+                    "unit": "Lot",
+                    "unit_price": 9000.0,
                 }
             ],
             date_issued=datetime.now().date(),
@@ -236,6 +236,41 @@ class TestQuotationServiceCreateDesign(unittest.TestCase):
         if getattr(q2, "id", None) is not None:
             db_q2 = self.session.get(QuotationSchemaForTest, q2.id)
             self.assertIsNotNone(db_q2)
+
+        # ========= 檢查第一個 quotation 的 items =========
+        items_q1 = list(
+            self.session.exec(
+                select(QuotationItemSchemaForTest).where(
+                    QuotationItemSchemaForTest.quotation_id == q1.id
+                )
+            )
+        )
+        self.assertEqual(len(items_q1), 1, "First quotation should have 1 item")
+        self.assertEqual(items_q1[0].item_desc, "Initial design scope")
+        self.assertEqual(items_q1[0].quantity, 1)
+        self.assertEqual(items_q1[0].unit, "Lot")
+        self.assertEqual(items_q1[0].unit_price, 8000.0)
+        self.assertEqual(items_q1[0].amount, 8000.0)
+
+        # ========= 檢查第二個 quotation 的 items =========
+        items_q2 = list(
+            self.session.exec(
+                select(QuotationItemSchemaForTest).where(
+                    QuotationItemSchemaForTest.quotation_id == q2.id
+                )
+            )
+        )
+        self.assertEqual(len(items_q2), 1, "Second quotation should have 1 item")
+        self.assertEqual(items_q2[0].item_desc, "Second design scope")
+        self.assertEqual(items_q2[0].quantity, 1)
+        self.assertEqual(items_q2[0].unit, "Lot")
+        self.assertEqual(items_q2[0].unit_price, 9000.0)
+        self.assertEqual(items_q2[0].amount, 9000.0)
+
+        # ========= 驗證兩個 quotation 的 items 是獨立的 =========
+        self.assertNotEqual(items_q1[0].id, items_q2[0].id)
+        self.assertEqual(items_q1[0].quotation_id, q1.id)
+        self.assertEqual(items_q2[0].quotation_id, q2.id)
 
 
 # ============================================================
@@ -301,7 +336,7 @@ class TestQuotationServiceCreateInspection(unittest.TestCase):
                 {
                     "item_desc": "Test structural inspection fee",
                     "quantity": 2,
-                    "unit": "LS",
+                    "unit": "Lot",
                     "unit_price": 3000.0,  # 2 * 3000 = 6000
                 }
             ],
@@ -339,8 +374,8 @@ class TestQuotationServiceCreateInspection(unittest.TestCase):
                 {
                     "item_desc": "Initial inspection scope",
                     "quantity": 1,
-                    "unit": "LS",
-                    "unit_rate": 6000.0,
+                    "unit": "Lot",
+                    "unit_price": 6000.0,
                 }
             ],
             date_issued=datetime.now().date(),
@@ -361,8 +396,8 @@ class TestQuotationServiceCreateInspection(unittest.TestCase):
                 {
                     "item_desc": "Second inspection scope",
                     "quantity": 1,
-                    "unit": "LS",
-                    "unit_rate": 7000.0,
+                    "unit": "Lot",
+                    "unit_price": 7000.0,
                 }
             ],
             date_issued=datetime.now().date(),
@@ -394,6 +429,41 @@ class TestQuotationServiceCreateInspection(unittest.TestCase):
         if getattr(q2, "id", None) is not None:
             db_q2 = self.session.get(QuotationSchemaForTest, q2.id)
             self.assertIsNotNone(db_q2)
+
+        # ========= 檢查第一個 quotation 的 items =========
+        items_q1 = list(
+            self.session.exec(
+                select(QuotationItemSchemaForTest).where(
+                    QuotationItemSchemaForTest.quotation_id == q1.id
+                )
+            )
+        )
+        self.assertEqual(len(items_q1), 1, "First inspection quotation should have 1 item")
+        self.assertEqual(items_q1[0].item_desc, "Initial inspection scope")
+        self.assertEqual(items_q1[0].quantity, 1)
+        self.assertEqual(items_q1[0].unit, "Lot")
+        self.assertEqual(items_q1[0].unit_price, 6000.0)
+        self.assertEqual(items_q1[0].amount, 6000.0)
+
+        # ========= 檢查第二個 quotation 的 items =========
+        items_q2 = list(
+            self.session.exec(
+                select(QuotationItemSchemaForTest).where(
+                    QuotationItemSchemaForTest.quotation_id == q2.id
+                )
+            )
+        )
+        self.assertEqual(len(items_q2), 1, "Second inspection quotation should have 1 item")
+        self.assertEqual(items_q2[0].item_desc, "Second inspection scope")
+        self.assertEqual(items_q2[0].quantity, 1)
+        self.assertEqual(items_q2[0].unit, "Lot")
+        self.assertEqual(items_q2[0].unit_price, 7000.0)
+        self.assertEqual(items_q2[0].amount, 7000.0)
+
+        # ========= 驗證兩個 quotation 的 items 是獨立的 =========
+        self.assertNotEqual(items_q1[0].id, items_q2[0].id)
+        self.assertEqual(items_q1[0].quotation_id, q1.id)
+        self.assertEqual(items_q2[0].quotation_id, q2.id)
 
 
 if __name__ == "__main__":
